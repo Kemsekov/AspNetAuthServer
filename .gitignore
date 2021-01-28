@@ -1,5 +1,5 @@
 Assets/
-*.save
 obj/
 bin/
 .vscode/
+.save
