@@ -1,2 +1,5 @@
 ./Assets/cert/*
 ./Assets/*
+*.save
+obj/
+bin/

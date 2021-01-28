@@ -11,8 +11,12 @@ namespace WebApi.Models
         [MinLength(8)]
         public string Password{get;set;}      
         [MaxLength(256)] 
+        [Required]
+        [MinLength(5)]
         public string UserName{get;set;}
         [MaxLength(256)]
+        [Required]
+        [EmailAddress]
         public string Email{get;set;}
         [Phone]
         public string Phone{get;set;}

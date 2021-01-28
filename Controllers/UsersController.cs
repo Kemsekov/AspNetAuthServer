@@ -76,22 +76,19 @@ namespace WebApi.Controllers
         [Authorize(Role="admin")]
         [HttpPost("Add")]
         public async Task<IActionResult> Add(CreateUserRequest user){
-            if(!string.IsNullOrEmpty(user.Email) && !string.IsNullOrEmpty(user.UserName)){
-                var identityUser = new IdentityUser(){
-                    Email = user.Email,
-                    UserName = user.UserName,
-                    PhoneNumber = user.Phone
-                };
-                var result = await _userManager.CreateAsync(identityUser,user.Password);
-                if(result.Succeeded){
-                    identityUser = await _userManager.FindByEmailAsync(identityUser.Email);
-                    var verificationCode = await _userManager.GenerateEmailConfirmationTokenAsync(identityUser);
-                    return new JsonResult(new {message="Success", email_verification_code = verificationCode}){StatusCode = StatusCodes.Status201Created};
-                }
-                else 
-                    return new JsonResult(result.Errors){StatusCode = StatusCodes.Status400BadRequest};
+            var identityUser = new IdentityUser(){
+                Email = user.Email,
+                UserName = user.UserName,
+                PhoneNumber = user.Phone
+            };
+            var result = await _userManager.CreateAsync(identityUser,user.Password);
+            if(result.Succeeded){
+                identityUser = await _userManager.FindByEmailAsync(identityUser.Email);
+                var verificationCode = await _userManager.GenerateEmailConfirmationTokenAsync(identityUser);
+                return new JsonResult(new {message="Success", email_verification_code = verificationCode}){StatusCode = StatusCodes.Status201Created};
             }
-            return BadRequest("Email or UserName in not present");
+            else 
+                return new JsonResult(result.Errors){StatusCode = StatusCodes.Status400BadRequest};
         }
     }
 }

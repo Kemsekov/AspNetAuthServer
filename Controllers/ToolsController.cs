@@ -21,7 +21,7 @@ namespace WebApi.Controllers
 
             try{
             await _emailSender.SendEmailAsync(request.mailTo,request.subject,request.html);
-            return Ok();
+            return Ok(new {message="Message sent"});
             }
             catch{
                 return this.StatusCode(501);
