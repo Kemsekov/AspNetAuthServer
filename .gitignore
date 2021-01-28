@@ -1,5 +1,5 @@
-./Assets/cert/*
-./Assets/*
+Assets/
 *.save
 obj/
 bin/
+.vscode/
