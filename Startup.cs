@@ -99,6 +99,8 @@ namespace WebApi
                     name: "default",
                     pattern: "{controller=Home}/{action=Index}/{id?}");
             });
+            
+            //create if not exist admin user that have access to CRUD operations and other stuff 
             Seed.Initialize(userManager,roleManager,dbContext,settings.Value).Wait();
         }
     }

@@ -28,12 +28,16 @@ namespace WebApi.Helpers
 
             if (token != null)
                 await attachUserToContext(context, userManager, token);
+            //this object is required for Authorize filter because i was not able to
+            //make beautiful dependency injection in filter yeah...
             context.Items["userManager"] = userManager;
             await _next(context);
         }
 
         private async Task attachUserToContext(HttpContext context, UserManager<IdentityUser> userManager, string token)
         {
+            //this code just copy-pasta from https://github.com/cornflourblue/aspnet-core-3-jwt-authentication-api
+            //but with change user type to IdentityUser
             try
             {
                 var tokenHandler = new JwtSecurityTokenHandler();
@@ -52,6 +56,7 @@ namespace WebApi.Helpers
                 var userId = jwtToken.Claims.First(x => x.Type == "id").Value;
 
                 // attach user to context on successful jwt validation
+                //this thing is required for AuthorizeAttribute as well
                 context.Items["User"] = await userManager.FindByIdAsync(userId);
             }
             catch

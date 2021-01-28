@@ -8,11 +8,13 @@ using WebApi.Entities;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity.UI.Services;
+using Microsoft.AspNetCore.Http;
+using System.Collections.Generic;
 
 namespace WebApi.Controllers
 {
     [ApiController]
-    [Route("[controller]")]
+    [Route("api/[controller]")]
     public class UsersController : ControllerBase
     {
         private readonly IEmailSender _emailSender;
@@ -38,71 +40,58 @@ namespace WebApi.Controllers
 
             if (response == null)
                 return BadRequest(new { message = "Username/Email or password is incorrect" });
-
             return Ok(response);
         }
-
-        
 
         [HttpGet("[action]")]
         [Authorize(Role="admin")]
         public async Task<IActionResult> GetAll()
         {
-            var currentUser = (IdentityUser)HttpContext.Items["User"];
-            if(!await _userManager.IsInRoleAsync(currentUser,"admin")) return Forbid(new string[]{"User is not claimed with admin role"});
             var users = _userManager.Users.Select(usr => new User(){identityUser = usr});
             return Ok(users);
         }
         [HttpGet("[action]")]
         [Authorize(Role="admin")]
         public async Task<IActionResult> GetAllRaw(){
-            var currentUser = (IdentityUser)HttpContext.Items["User"];
-            if(!await _userManager.IsInRoleAsync(currentUser,"admin")) return Forbid(new string[]{"User is not claimed with admin role"});
             var users = _userManager.Users;
             return Ok(users);
         }
         [HttpGet("[action]")]
         [Authorize(Role="admin")]
         public async Task<IActionResult> GetById(string id){
-            var currentUser = (IdentityUser)HttpContext.Items["User"];
-            if(!await _userManager.IsInRoleAsync(currentUser,"admin")) return Forbid(new string[]{"User is not claimed with admin role"});
             var user = new User(){identityUser= await _userManager.FindByIdAsync(id)};
-            return Ok(user);
+            if(user!=null)
+            return new JsonResult(user){StatusCode = StatusCodes.Status200OK};
+            return new JsonResult(new {message="There is no user with such id"}){StatusCode = StatusCodes.Status404NotFound};
         }
         [HttpGet("[action]")]
         [Authorize(Role="admin")]
         public async Task<IActionResult> GetByIdRaw(string id){
-            var currentUser = (IdentityUser)HttpContext.Items["User"];
-            if(!await _userManager.IsInRoleAsync(currentUser,"admin")) return Forbid(new string[]{"User is not claimed with admin role"});
             var user = await _userManager.FindByIdAsync(id);
-            return Ok(user);
+            if(user!=null)
+            return new JsonResult(user){StatusCode = StatusCodes.Status200OK};
+            return new JsonResult(new {message="There is no user with such id"}){StatusCode = StatusCodes.Status404NotFound};
         }
 
         [Authorize(Role="admin")]
         [HttpPost("Add")]
         public async Task<IActionResult> Add(CreateUserRequest user){
-            if(!string.IsNullOrEmpty(user.Email) || !string.IsNullOrEmpty(user.UserName)){
+            if(!string.IsNullOrEmpty(user.Email) && !string.IsNullOrEmpty(user.UserName)){
                 var identityUser = new IdentityUser(){
                     Email = user.Email,
                     UserName = user.UserName,
                     PhoneNumber = user.Phone
                 };
                 var result = await _userManager.CreateAsync(identityUser,user.Password);
-                return Created(HttpContext.Request.Host.Host,new {message="Success"});
+                if(result.Succeeded){
+                    identityUser = await _userManager.FindByEmailAsync(identityUser.Email);
+                    var verificationCode = await _userManager.GenerateEmailConfirmationTokenAsync(identityUser);
+                    return new JsonResult(new {message="Success", email_verification_code = verificationCode}){StatusCode = StatusCodes.Status201Created};
+                }
+                else 
+                    return new JsonResult(result.Errors){StatusCode = StatusCodes.Status400BadRequest};
             }
             return BadRequest("Email or UserName in not present");
-        }
-        [HttpGet("[action]")]
-        [Authorize(Role="admin")]
-        public async Task<IActionResult> SendEmail(){
-            
-            try{
-            await _emailSender.SendEmailAsync("pikova98@bk.ru","Hello","<p>Hello</p>");
-            return Ok();
-            }
-            catch{
-                return this.StatusCode(501);
-            }
         }
     }
 }

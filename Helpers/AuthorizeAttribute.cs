@@ -14,15 +14,19 @@ public class AuthorizeAttribute : Attribute, IAuthorizationFilter
     public void OnAuthorization(AuthorizationFilterContext context)
     {
         var manager =  (UserManager<IdentityUser>)context.HttpContext.Items["userManager"];
+
         var user = (IdentityUser)context.HttpContext.Items["User"];
+        
         if (user == null)
         {
             // not logged in
             context.Result = new JsonResult(new { message = "Unauthorized" }) { StatusCode = StatusCodes.Status401Unauthorized };
+            return;
         }
 
+        //if we need to check user's role
         if(!string.IsNullOrEmpty(Role)){
-            if(manager!=null && user!=null)
+            if(manager!=null)
             if(!manager.IsInRoleAsync(user,Role).GetAwaiter().GetResult()){
                 context.Result = new JsonResult(new {message="User is not allowed to this resource"}) {StatusCode=StatusCodes.Status403Forbidden};
             }
