@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <UserSecretsId>aspnet-WebApp-95DCAE28-F067-406C-A4E4-8AB1B834EDA7</UserSecretsId>
+    <TargetFramework>net5.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="5.0.1"/>
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="5.0.1"/>
+    <PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="5.0.1"/>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="5.0.1"/>
+    <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="5.0.0-alpha.2"/>
+    <PackageReference Include="NETCore.MailKit" Version="2.0.3"/>
+    <PackageReference Include="Google.Apis.Auth.Mvc" Version="1.49.0"/>
+    <PackageReference Include="Google.Apis.Auth" Version="1.49.0"/>
+    <PackageReference Include="System.Text.Encodings.Web" Version="5.0.0"/>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="5.0.1" NoWarn="NU1605"/>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="5.0.1" NoWarn="NU1605"/>
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="5.6.3"/>
+    <PackageReference Include="AutoMapper.Extensions.Microsoft.DependencyInjection" Version="8.1.0"/>
+    <PackageReference Include="GoogleApi" Version="3.10.5"/>
+  </ItemGroup>
+</Project>
