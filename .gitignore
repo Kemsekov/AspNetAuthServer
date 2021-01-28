@@ -1,5 +1,4 @@
 Assets/
-obj/
 bin/
-.vscode/
-.save
+obj/
+Migrations/
