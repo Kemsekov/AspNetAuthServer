@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace WebApi.Models
 {
-    public class UpdateUserRequest : INeedFindUser
+    public class RemoveRequest : INeedFindUser
     {
         [Required]
         public string FindUserBy{get;set;}
@@ -12,12 +12,5 @@ namespace WebApi.Models
         public string UserName{get;set;}    
         [EmailAddress]
         public string Email{get;set;}
-        public string[] AddRoles{get;set;}
-        public string[] RemoveRoles{get;set;}
-        [MinLength(8)]
-        [MaxLength(256)]
-        public string Password{get;set;}
-        [Phone]
-        public string Phone{get;set;}
     }
 }

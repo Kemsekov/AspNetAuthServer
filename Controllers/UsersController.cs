@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.Http;
 using System.Collections.Generic;
 using System.Transactions;
+using System;
 
 namespace WebApi.Controllers
 {
@@ -45,16 +46,16 @@ namespace WebApi.Controllers
         }
 
         [HttpGet("[action]")]
-        [Authorize(Roles="admin or modifier user")]
+        [Authorize(Roles="admin or moderator user")]
         public async Task<IActionResult> GetAll()
         {
-            var users = _userManager.Users.Select(usr => new User(){identityUser = usr});
-            return Ok(users);
+            var usersAndRoles = _context.Users.ToList().Select(u=>new {User=new User(){identityUser = u},Roles= _userManager.GetRolesAsync(u).GetAwaiter().GetResult()});
+            return Ok(usersAndRoles);
         }
         [HttpGet("[action]")]
         public async Task<IActionResult> GetAllRaw(){
-            var users = _userManager.Users;
-            return Ok(users);
+            var usersAndRoles = _context.Users.ToList().Select(u=>new {User=u,Roles= _userManager.GetRolesAsync(u).GetAwaiter().GetResult()});
+            return Ok(usersAndRoles);
         }
         [HttpGet("[action]")]
         [Authorize(Roles="admin or modifier user")]
@@ -80,17 +81,19 @@ namespace WebApi.Controllers
                 UserName = user.UserName,
                 PhoneNumber = user.Phone
             };
+            using var scope = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
             var result = await _userManager.CreateAsync(identityUser,user.Password);
             if(result.Succeeded){
                 identityUser = await _userManager.FindByEmailAsync(identityUser.Email);
                 var verificationCode = await _userManager.GenerateEmailConfirmationTokenAsync(identityUser);
+                scope.Complete();
                 return new JsonResult(new {message="Success",
                  email_verification_code = verificationCode,
                  User = new User(){identityUser = identityUser}}) 
                  {StatusCode = StatusCodes.Status201Created};
             }
-            else 
-                return new JsonResult(result.Errors){StatusCode = StatusCodes.Status400BadRequest};
+            scope.Complete();
+            return new JsonResult(result.Errors){StatusCode = StatusCodes.Status400BadRequest};
         }
         [HttpPost("[action]")]
         [Authorize(Roles="admin")]
@@ -102,33 +105,15 @@ namespace WebApi.Controllers
         //roles can be removed and ignore anything else,
         //so you don't need to remember user's roles list to be sure that
         //you can remove some role or add.
-        //Very handy tool but slow as f. A lot of database queries.
         public async Task<IActionResult> SmartUpdate(UpdateUserRequest request){
-            var findByLower = request.FindUserBy.ToLower();
-            IdentityUser user = null;
             using var scope = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
-            switch(findByLower){
-                case "username":
-                    if(string.IsNullOrEmpty(request.UserName)) 
-                    return new JsonResult(new {message=$"Empty ot null {findByLower}"}){StatusCode=StatusCodes.Status400BadRequest};
-                    user = await _userManager.FindByNameAsync(request.UserName);
-                break;
-                case "email":
-                    if(string.IsNullOrEmpty(request.Email)) 
-                    return new JsonResult(new {message=$"Empty ot null {findByLower}"}){StatusCode=StatusCodes.Status400BadRequest};
-                    user = await _userManager.FindByEmailAsync(request.Email);
-                break;
-                case "id" :
-                    if(string.IsNullOrEmpty(request.Id)) 
-                    return new JsonResult(new {message=$"Empty ot null {findByLower}"}){StatusCode=StatusCodes.Status400BadRequest};
-                    user = await _userManager.FindByIdAsync(request.Id);
-                break;
-                default:
-                    return new JsonResult(new {message="Wrong 'findUserBy' argument. It should be 'user' or 'email' or 'id'"}){StatusCode=StatusCodes.Status400BadRequest};
-            };
-            if(user==null){
-              return new JsonResult(new {message=$"Wrong {findByLower}"}){StatusCode=StatusCodes.Status404NotFound};  
-            }
+            
+            IdentityUser user = null;
+            (IActionResult,IdentityUser) res = await FindUser(request);
+            if(res.Item1!=null)
+                return res.Item1;
+            user = res.Item2;
+
             user.Email=request.Email!=null ? request.Email : user.Email;
             user.UserName=request.UserName!=null ? request.UserName : user.UserName;
             user.PhoneNumber=request.Password!=null ? request.Phone : user.PhoneNumber;
@@ -146,17 +131,55 @@ namespace WebApi.Controllers
                 
                 if(roles==null) 
                 roles = await _userManager.GetRolesAsync(user);
-                var removeRolesThatExistNow = roles.Join(request.RemoveRoles,
-                                                        roles1=>roles1,
-                                                        roles2=>roles2,
-                                                        (roles1,roles2)=>roles1);
+                var removeRolesThatExistNow = roles.Intersect(request.RemoveRoles);
                 var result = await _userManager.RemoveFromRolesAsync(user,removeRolesThatExistNow);
                 roles = roles.Except(removeRolesThatExistNow).ToList();
             }
-            var Roles = await _userManager.GetRolesAsync(user);
             scope.Complete();
-            return Ok(new {Roles = Roles,user = new User(){identityUser = user}});
+            return Ok(new {Roles = roles,user = new User(){identityUser = user}});
 
+        }
+        public async Task<IActionResult> Delete(RemoveRequest request){
+            using var scope = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
+            
+            IdentityUser user = null;
+            (IActionResult,IdentityUser) res = await FindUser(request);
+            if(res.Item1!=null)
+                return res.Item1;
+            user = res.Item2;
+
+            var result = await _userManager.DeleteAsync(user);
+            scope.Complete();
+            if(result.Succeeded)
+                return Ok(new {message="user deleted"});
+            return BadRequest(result.Errors);
+        }
+        protected async Task<(IActionResult,IdentityUser)> FindUser(INeedFindUser request){
+            var findByLower = request.FindUserBy.ToLower();
+            IdentityUser user = null;
+            switch(findByLower){
+                case "username":
+                    if(string.IsNullOrEmpty(request.UserName)) 
+                    return (new JsonResult(new {message=$"Empty ot null {findByLower}"}){StatusCode=StatusCodes.Status400BadRequest},null);
+                    user = await _userManager.FindByNameAsync(request.UserName);
+                break;
+                case "email":
+                    if(string.IsNullOrEmpty(request.Email)) 
+                    return (new JsonResult(new {message=$"Empty ot null {findByLower}"}){StatusCode=StatusCodes.Status400BadRequest},null);
+                    user = await _userManager.FindByEmailAsync(request.Email);
+                break;
+                case "id" :
+                    if(string.IsNullOrEmpty(request.Id)) 
+                    return (new JsonResult(new {message=$"Empty ot null {findByLower}"}){StatusCode=StatusCodes.Status400BadRequest},null);
+                    user = await _userManager.FindByIdAsync(request.Id);
+                break;
+                default:
+                    return (new JsonResult(new {message="Wrong 'findUserBy' argument. It should be 'user' or 'email' or 'id'"}){StatusCode=StatusCodes.Status400BadRequest},null);
+            };
+            if(user==null){
+              return (new JsonResult(new {message=$"Wrong {findByLower}"}){StatusCode=StatusCodes.Status404NotFound},null);  
+            }
+            return (null,user);
         }
     }
 }
