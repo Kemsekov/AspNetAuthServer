@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.Http;
 using System.Collections.Generic;
+using System.Transactions;
 
 namespace WebApi.Controllers
 {
@@ -101,10 +102,11 @@ namespace WebApi.Controllers
         //roles can be removed and ignore anything else,
         //so you don't need to remember user's roles list to be sure that
         //you can remove some role or add.
-        //Very handy tool slow as f. A lot of database queries.
+        //Very handy tool but slow as f. A lot of database queries.
         public async Task<IActionResult> SmartUpdate(UpdateUserRequest request){
             var findByLower = request.FindUserBy.ToLower();
             IdentityUser user = null;
+            using var scope = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
             switch(findByLower){
                 case "username":
                     if(string.IsNullOrEmpty(request.UserName)) 
@@ -127,7 +129,6 @@ namespace WebApi.Controllers
             if(user==null){
               return new JsonResult(new {message=$"Wrong {findByLower}"}){StatusCode=StatusCodes.Status404NotFound};  
             }
-
             user.Email=request.Email!=null ? request.Email : user.Email;
             user.UserName=request.UserName!=null ? request.UserName : user.UserName;
             user.PhoneNumber=request.Password!=null ? request.Phone : user.PhoneNumber;
@@ -150,9 +151,12 @@ namespace WebApi.Controllers
                                                         roles2=>roles2,
                                                         (roles1,roles2)=>roles1);
                 var result = await _userManager.RemoveFromRolesAsync(user,removeRolesThatExistNow);
+                roles = roles.Except(removeRolesThatExistNow).ToList();
             }
+            var Roles = await _userManager.GetRolesAsync(user);
+            scope.Complete();
+            return Ok(new {Roles = Roles,user = new User(){identityUser = user}});
 
-            return Ok(new {Roles = await _userManager.GetRolesAsync(user),user = new User(){identityUser = user}});
         }
     }
 }
