@@ -44,20 +44,19 @@ namespace WebApi.Controllers
         }
 
         [HttpGet("[action]")]
-        [Authorize(Role="admin")]
+        [Authorize(Roles="admin or modifier user")]
         public async Task<IActionResult> GetAll()
         {
             var users = _userManager.Users.Select(usr => new User(){identityUser = usr});
             return Ok(users);
         }
         [HttpGet("[action]")]
-        [Authorize(Role="admin")]
         public async Task<IActionResult> GetAllRaw(){
             var users = _userManager.Users;
             return Ok(users);
         }
         [HttpGet("[action]")]
-        [Authorize(Role="admin")]
+        [Authorize(Roles="admin or modifier user")]
         public async Task<IActionResult> GetById(string id){
             var user = new User(){identityUser= await _userManager.FindByIdAsync(id)};
             if(user!=null)
@@ -65,7 +64,6 @@ namespace WebApi.Controllers
             return new JsonResult(new {message="There is no user with such id"}){StatusCode = StatusCodes.Status404NotFound};
         }
         [HttpGet("[action]")]
-        [Authorize(Role="admin")]
         public async Task<IActionResult> GetByIdRaw(string id){
             var user = await _userManager.FindByIdAsync(id);
             if(user!=null)
@@ -73,8 +71,8 @@ namespace WebApi.Controllers
             return new JsonResult(new {message="There is no user with such id"}){StatusCode = StatusCodes.Status404NotFound};
         }
 
-        [Authorize(Role="admin")]
-        [HttpPost("Add")]
+        [HttpPost("[action]")]
+        [Authorize(Roles="admin")]
         public async Task<IActionResult> Add(CreateUserRequest user){
             var identityUser = new IdentityUser(){
                 Email = user.Email,
@@ -89,6 +87,58 @@ namespace WebApi.Controllers
             }
             else 
                 return new JsonResult(result.Errors){StatusCode = StatusCodes.Status400BadRequest};
+        }
+        [HttpPost("[action]")]
+        [Authorize(Roles="admin")]
+        public async Task<IActionResult> Update(UpdateUserRequest request,string findUserBy){
+            if(findUserBy==null) return BadRequest();
+            var findByLower = findUserBy.ToLower();
+            IdentityUser user = null;
+            switch(findByLower){
+                case "username":
+                    if(string.IsNullOrEmpty(request.UserName)) 
+                    return new JsonResult(new {message=$"Empty ot null {findByLower}"}){StatusCode=StatusCodes.Status400BadRequest};
+                    user = await _userManager.FindByNameAsync(request.UserName);
+                break;
+                case "email":
+                    if(string.IsNullOrEmpty(request.Email)) 
+                    return new JsonResult(new {message=$"Empty ot null {findByLower}"}){StatusCode=StatusCodes.Status400BadRequest};
+                    user = await _userManager.FindByEmailAsync(request.Email);
+                break;
+                case "id" :
+                    if(string.IsNullOrEmpty(request.Id)) 
+                    return new JsonResult(new {message=$"Empty ot null {findByLower}"}){StatusCode=StatusCodes.Status400BadRequest};
+                    user = await _userManager.FindByIdAsync(request.Id);
+                break;
+                default:
+                    return new JsonResult(new {message="Wrong 'findUserBy' argument. It should be 'user' or 'email' or 'id'"}){StatusCode=StatusCodes.Status400BadRequest};
+            };
+            if(user==null){
+              return new JsonResult(new {message=$"Wrong {findByLower}"}){StatusCode=StatusCodes.Status404NotFound};  
+            }
+
+            user.Email=request.Email!=null ? request.Email : user.Email;
+            user.UserName=request.UserName!=null ? request.UserName : user.UserName;
+            user.PhoneNumber=request.Password!=null ? request.Phone : user.PhoneNumber;
+            
+            var resultupdate = await _userManager.UpdateAsync(user);
+            if(!resultupdate.Succeeded)
+            return new JsonResult(resultupdate.Errors){StatusCode=StatusCodes.Status406NotAcceptable};
+            
+            if(request.AddRoles.Any()){
+                var result = await _userManager.AddToRolesAsync(user,request.AddRoles);
+                if(!result.Succeeded)
+                    return new JsonResult(result.Errors){StatusCode = StatusCodes.Status406NotAcceptable};
+            }
+            if(request.RemoveRoles.Any()){
+                var result = await _userManager.RemoveFromRolesAsync(user,request.RemoveRoles);
+                if(!result.Succeeded)
+                    return new JsonResult(result.Errors){StatusCode = StatusCodes.Status406NotAcceptable};
+            }
+
+            return Ok();
+            
+
         }
     }
 }

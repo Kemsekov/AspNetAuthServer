@@ -16,7 +16,6 @@ namespace WebApi.Controllers
             _emailSender = emailSender;
         }
         [HttpGet("[action]")]
-        [Authorize(Role="admin")]
         public async Task<IActionResult> SendEmail(SendEmailRequest request){
 
             try{

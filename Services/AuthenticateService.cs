@@ -42,7 +42,7 @@ namespace WebApi.Services
                 identityUser = await _userManager.FindByEmailAsync(model.Email);
             }
             else{
-                identityUser = await _userManager.FindByNameAsync(model.Username);
+                identityUser = await _userManager.FindByNameAsync(model.UserName);
             }
             
             // return null if user not found or wrong password
@@ -70,7 +70,7 @@ namespace WebApi.Services
             var tokenDescriptor = new SecurityTokenDescriptor
             {
                 Subject = new ClaimsIdentity(new[] { new Claim("id", user.Id) }),
-                Expires = DateTime.UtcNow.AddDays(7),
+                Expires = DateTime.UtcNow.AddHours(2),
                 SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
             };
             var token = tokenHandler.CreateToken(tokenDescriptor);
