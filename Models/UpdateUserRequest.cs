@@ -4,6 +4,8 @@ namespace WebApi.Models
 {
     public class UpdateUserRequest
     {
+        [Required]
+        public string FindUserBy{get;set;}
         public string Id{get;set;}
         [MinLength(5)]
         [MaxLength(256)]

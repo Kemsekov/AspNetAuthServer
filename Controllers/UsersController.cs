@@ -83,16 +83,27 @@ namespace WebApi.Controllers
             if(result.Succeeded){
                 identityUser = await _userManager.FindByEmailAsync(identityUser.Email);
                 var verificationCode = await _userManager.GenerateEmailConfirmationTokenAsync(identityUser);
-                return new JsonResult(new {message="Success", email_verification_code = verificationCode}){StatusCode = StatusCodes.Status201Created};
+                return new JsonResult(new {message="Success",
+                 email_verification_code = verificationCode,
+                 User = new User(){identityUser = identityUser}}) 
+                 {StatusCode = StatusCodes.Status201Created};
             }
             else 
                 return new JsonResult(result.Errors){StatusCode = StatusCodes.Status400BadRequest};
         }
         [HttpPost("[action]")]
         [Authorize(Roles="admin")]
-        public async Task<IActionResult> Update(UpdateUserRequest request,string findUserBy){
-            if(findUserBy==null) return BadRequest();
-            var findByLower = findUserBy.ToLower();
+        //this update action is called smart because of unstrict requirements to
+        //request. You may choose what way to find user you need, by id, username or email.
+        //You can specify properties such as Email or Phone if you need and not specify if you
+        //don't need them. You may specify AddRoles and RemoveRoles
+        //as you please, this method will find what roles can be added and what
+        //roles can be removed and ignore anything else,
+        //so you don't need to remember user's roles list to be sure that
+        //you can remove some role or add.
+        //Very handy tool slow as f. A lot of database queries.
+        public async Task<IActionResult> SmartUpdate(UpdateUserRequest request){
+            var findByLower = request.FindUserBy.ToLower();
             IdentityUser user = null;
             switch(findByLower){
                 case "username":
@@ -123,22 +134,25 @@ namespace WebApi.Controllers
             
             var resultupdate = await _userManager.UpdateAsync(user);
             if(!resultupdate.Succeeded)
-            return new JsonResult(resultupdate.Errors){StatusCode=StatusCodes.Status406NotAcceptable};
+            return new JsonResult(new {message="Error while attemt to update user",resultupdate.Errors}){StatusCode=StatusCodes.Status406NotAcceptable};
             
-            if(request.AddRoles.Any()){
-                var result = await _userManager.AddToRolesAsync(user,request.AddRoles);
-                if(!result.Succeeded)
-                    return new JsonResult(result.Errors){StatusCode = StatusCodes.Status406NotAcceptable};
+            IList<string> roles = null;
+            if(request.AddRoles!=null && request.AddRoles.Any()){
+                roles = await _userManager.GetRolesAsync(user);
+                var result = await _userManager.AddToRolesAsync(user,request.AddRoles.Except(roles));
             }
-            if(request.RemoveRoles.Any()){
-                var result = await _userManager.RemoveFromRolesAsync(user,request.RemoveRoles);
-                if(!result.Succeeded)
-                    return new JsonResult(result.Errors){StatusCode = StatusCodes.Status406NotAcceptable};
+            if(request.RemoveRoles!=null && request.RemoveRoles.Any()){
+                
+                if(roles==null) 
+                roles = await _userManager.GetRolesAsync(user);
+                var removeRolesThatExistNow = roles.Join(request.RemoveRoles,
+                                                        roles1=>roles1,
+                                                        roles2=>roles2,
+                                                        (roles1,roles2)=>roles1);
+                var result = await _userManager.RemoveFromRolesAsync(user,removeRolesThatExistNow);
             }
 
-            return Ok();
-            
-
+            return Ok(new {Roles = await _userManager.GetRolesAsync(user),user = new User(){identityUser = user}});
         }
     }
 }
