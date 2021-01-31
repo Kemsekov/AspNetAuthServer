@@ -105,6 +105,7 @@ namespace WebApi.Controllers
         //roles can be removed and ignore anything else,
         //so you don't need to remember user's roles list to be sure that
         //you can remove some role or add.
+        //t
         public async Task<IActionResult> SmartUpdate(UpdateUserRequest request){
             using var scope = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
             
