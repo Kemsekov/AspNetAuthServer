@@ -16,6 +16,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Pomelo.EntityFrameworkCore.MySql.Infrastructure;
 using WebApi.Options;
+using Microsoft.AspNetCore.Identity.UI.Services;
 
 namespace WebApi
 {
@@ -45,8 +46,9 @@ namespace WebApi
                 options.SignIn.RequireConfirmedAccount=true;
                 options.Password.RequiredLength=8;
             })
-                .AddEntityFrameworkStores<WebApiDbContext>();
-            
+                .AddEntityFrameworkStores<WebApiDbContext>()
+                .AddDefaultTokenProviders();
+            services.AddSingleton<IEmailSender,EmailSender>();
             services.AddDbContext<WebApiDbContext>(builder=>
             {
                 builder.UseMySql(

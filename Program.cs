@@ -15,6 +15,7 @@ using System.Threading.Tasks;
 using WebApi.Options;
 using WebApi.Services;
 using WebApi.Contexts;
+using Microsoft.Extensions.Options;
 
 namespace WebApi
 {
@@ -48,7 +49,7 @@ namespace WebApi
                 var service = scope.ServiceProvider;
                 var userManager = service.GetRequiredService<UserManager<ApplicationUser>>();
                 var roleManager = service.GetRequiredService<RoleManager<IdentityRole>>();
-                var adminOptions = service.GetRequiredService<AdminOptions>();
+                var adminOptions = service.GetRequiredService<IOptions<AdminOptions>>().Value;
                 var context = service.GetRequiredService<WebApiDbContext>();
                 await Seed.Initialize(userManager, roleManager,context,adminOptions);
 

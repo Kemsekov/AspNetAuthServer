@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Identity;
@@ -20,14 +21,23 @@ namespace WebApi.Services
             };
             if(!dbContext.Roles.Any()){
                 foreach(var role in roles)
-                roleManager.CreateAsync(role).GetAwaiter().GetResult();
+                await roleManager.CreateAsync(role);;
             }
             if(!dbContext.Users.Any(u=>u.UserName=="admin")){
                 var adminUser = new ApplicationUser(){
                     UserName="admin",
                     Email=settings.Email
                 };
-                var result = userManager.CreateAsync(adminUser,settings.Password).GetAwaiter().GetResult();
+                var result = await userManager.CreateAsync(adminUser,settings.Password);
+                if(!result.Succeeded){
+                    foreach(var err in result.Errors){
+                    System.Console.BackgroundColor = ConsoleColor.Red;
+                    System.Console.WriteLine(err.Description);
+                    }
+                    System.Console.ResetColor();
+                    throw new Exception();
+                }
+                    
                 userManager.AddToRoleAsync(adminUser,"admin").GetAwaiter().GetResult();
             }
         }
