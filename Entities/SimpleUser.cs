@@ -1,16 +1,18 @@
 using System.Text.Json.Serialization;
-using AutoMapper;
 using Microsoft.AspNetCore.Identity;
 
 namespace WebApi.Entities
 {
-    public class User
+    /// <summary>
+    /// This is simplefied version of IdentityUser that helps incapsulate some IdentityUser fields
+    /// </summary>
+    public class SimpleUser
     {
-        public User()
+        public SimpleUser()
         {
         }
         [JsonIgnore]
-        public IdentityUser identityUser {get; set;} = new IdentityUser();
+        public ApplicationUser identityUser {get; set;} = new ApplicationUser();
         public string Id{get=>identityUser.Id;set=>identityUser.Id=value;}
         public string UserName {get=>identityUser.UserName;set=>identityUser.UserName = value;}
         public string Email{get=>identityUser.Email;set=>identityUser.Email = value;}

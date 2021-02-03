@@ -1,4 +1,4 @@
-namespace WebApi.Helpers
+namespace WebApi.Options
 {
     public class EmailConfiguration
     {

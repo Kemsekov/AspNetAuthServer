@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using WebApi.Entities;
 
-namespace WebApi.Models
+namespace WebApi.Models.Responses
 {
     public class AuthenticateResponse
     {
@@ -10,7 +10,7 @@ namespace WebApi.Models
         public string UserName { get; set; }
         public string Token { get; set; }
 
-        public AuthenticateResponse(IdentityUser user, string token)
+        public AuthenticateResponse(ApplicationUser user, string token)
         {
             Id = user.Id;
             Email = user.Email;

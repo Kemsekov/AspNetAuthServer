@@ -1,28 +1,34 @@
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Identity;
-using WebAppApi.Data;
-using WebApi.Helpers;
+using WebApi.Contexts;
+using WebApi.Entities;
+using WebApi.Options;
+
 namespace WebApi.Services
 {
     public class Seed 
     {
 
-        public static async Task Initialize(UserManager<IdentityUser> userManager,RoleManager<IdentityRole> roleManager,WebApiContext dbContext,AppSettings settings)
+        public static async Task Initialize(UserManager<ApplicationUser> userManager,RoleManager<IdentityRole> roleManager,WebApiDbContext dbContext,AdminOptions settings)
         {            
-            var adminRole = new IdentityRole("admin");
-            var moderatorRole = new IdentityRole("moderator");
+            var roles = new []{
+             new IdentityRole("admin"),
+             new IdentityRole("moderator"),
+             new IdentityRole("user"),
+             new IdentityRole("manager")
+            };
             if(!dbContext.Roles.Any()){
-                roleManager.CreateAsync(adminRole).GetAwaiter().GetResult();
-                roleManager.CreateAsync(moderatorRole).GetAwaiter().GetResult();
+                foreach(var role in roles)
+                roleManager.CreateAsync(role).GetAwaiter().GetResult();
             }
             if(!dbContext.Users.Any(u=>u.UserName=="admin")){
-                var adminUser = new IdentityUser(){
+                var adminUser = new ApplicationUser(){
                     UserName="admin",
-                    Email=settings.AdminEmail
+                    Email=settings.Email
                 };
-                var result = userManager.CreateAsync(adminUser,settings.AdminPassword).GetAwaiter().GetResult();
-                userManager.AddToRoleAsync(adminUser,adminRole.Name).GetAwaiter().GetResult();
+                var result = userManager.CreateAsync(adminUser,settings.Password).GetAwaiter().GetResult();
+                userManager.AddToRoleAsync(adminUser,"admin").GetAwaiter().GetResult();
             }
         }
 

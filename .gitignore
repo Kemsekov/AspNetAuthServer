@@ -1,6 +1,6 @@
-Assets/
 bin/
 obj/
 Migrations/
 *.save
 .vscode/
+Assets/

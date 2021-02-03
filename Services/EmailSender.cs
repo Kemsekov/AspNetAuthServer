@@ -14,7 +14,6 @@ using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.Extensions.Options;
 using MimeKit;
 using NETCore.MailKit.Infrastructure.Internal;
-using WebApi.Helpers;
 using WebApi.Models;
 using  MailKit.Net;
 using System.Security.Cryptography.X509Certificates;
@@ -22,25 +21,24 @@ using System.Net.Security;
 using MailKit.Security;
 using Google.Apis.Auth.OAuth2.Flows;
 using System.Collections.Generic;
+using WebApi.Options;
 
 namespace WebApi.Services
 {
     public class EmailSender : IEmailSender
     {
         private readonly Token _tokenConf;
-        private readonly AppSettings _settings;
-        private readonly Helpers.ClientSecrets _client_secrets;
+        private readonly CertsOptions _certs;
+        private readonly Options.ClientSecrets _client_secrets;
         private readonly EmailConfiguration _email;
 
-        public EmailSender(IOptions<AppSettings> settings,
-                           IOptions<Helpers.ClientSecrets> client_secrets,
+        public EmailSender(IOptions<CertsOptions> certs,
+                           IOptions<Options.ClientSecrets> client_secrets,
                            IOptions<EmailConfiguration> email,
-                           IOptions<Token> token,
-                           IOptions<EmailConfiguration> conf)
+                           IOptions<Token> token)
         {
-            _configuration = conf.Value;
             _tokenConf = token.Value;
-            _settings = settings.Value;
+            _certs = certs.Value;
             _client_secrets = client_secrets.Value;
             _email = email.Value;
             _token = UpdateTokenAsync().GetAwaiter().GetResult();
@@ -55,7 +53,7 @@ namespace WebApi.Services
             var server =_configuration.Server;
             var port = _configuration.Port;
             var username = _configuration.Username;
-            var path = _settings.CertPath;
+            var path = _certs.email;
             var mime_message = new MimeMessage();
 
             mime_message.To.Add(new MailboxAddress(mailTo));

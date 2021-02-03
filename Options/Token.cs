@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Configuration;
 
-namespace WebApi.Helpers
+namespace WebApi.Options
 {
     public class Token
     {

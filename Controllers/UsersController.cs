@@ -1,7 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using WebApi.Models;
 using WebApi.Services;
-using WebAppApi.Data;
 using System.Linq;
 using Microsoft.AspNetCore.Identity;
 using WebApi.Entities;
@@ -12,6 +11,8 @@ using Microsoft.AspNetCore.Http;
 using System.Collections.Generic;
 using System.Transactions;
 using System;
+using WebApi.Models.Requests;
+using WebApi.Contexts;
 
 namespace WebApi.Controllers
 {
@@ -20,36 +21,28 @@ namespace WebApi.Controllers
     public class UsersController : ControllerBase
     {
         private readonly IEmailSender _emailSender;
-        private readonly UserManager<IdentityUser> _userManager;
-        private readonly WebApiContext _context;
-        private readonly IAuthenticateService _authenticateService;
+        private readonly UserManager<ApplicationUser> _userManager;
+        private readonly WebApiDbContext _context;
 
-        public UsersController(IAuthenticateService authenticateService,
-                               WebApiContext context,
-                               UserManager<IdentityUser> userManager,
+        public UsersController(WebApiDbContext context,
+                               UserManager<ApplicationUser> userManager,
                                IEmailSender emailSender)
         {
             _emailSender = emailSender;
             _userManager = userManager;
             _context = context;
-            _authenticateService = authenticateService;
         }
 
         [HttpPost("Authenticate")]
         public IActionResult Authenticate(AuthenticateRequest model)
         {
-            var response = _authenticateService.Authenticate(model);
-
-            if (response == null)
-                return BadRequest(new { message = "Username/Email or password is incorrect" });
-            return Ok(response);
+            throw new NotImplementedException();
         }
 
         [HttpGet("[action]")]
-        [Authorize(Roles="admin or moderator user")]
         public async Task<IActionResult> GetAll()
         {
-            var usersAndRoles = _context.Users.ToList().Select(u=>new {User=new User(){identityUser = u},Roles= _userManager.GetRolesAsync(u).GetAwaiter().GetResult()});
+            var usersAndRoles = _context.Users.ToList().Select(u=>new {User=new SimpleUser(){identityUser = u},Roles= _userManager.GetRolesAsync(u).GetAwaiter().GetResult()});
             return Ok(usersAndRoles);
         }
         [HttpGet("[action]")]
@@ -58,9 +51,8 @@ namespace WebApi.Controllers
             return Ok(usersAndRoles);
         }
         [HttpGet("[action]")]
-        [Authorize(Roles="admin or modifier user")]
         public async Task<IActionResult> GetById(string id){
-            var user = new User(){identityUser= await _userManager.FindByIdAsync(id)};
+            var user = new SimpleUser(){identityUser= await _userManager.FindByIdAsync(id)};
             if(user!=null)
             return new JsonResult(user){StatusCode = StatusCodes.Status200OK};
             return new JsonResult(new {message="There is no user with such id"}){StatusCode = StatusCodes.Status404NotFound};
@@ -74,9 +66,8 @@ namespace WebApi.Controllers
         }
 
         [HttpPost("[action]")]
-        [Authorize(Roles="admin")]
         public async Task<IActionResult> Add(CreateUserRequest user){
-            var identityUser = new IdentityUser(){
+            var identityUser = new ApplicationUser(){
                 Email = user.Email,
                 UserName = user.UserName,
                 PhoneNumber = user.Phone
@@ -89,27 +80,18 @@ namespace WebApi.Controllers
                 scope.Complete();
                 return new JsonResult(new {message="Success",
                  email_verification_code = verificationCode,
-                 User = new User(){identityUser = identityUser}}) 
+                 User = new SimpleUser(){identityUser = identityUser}}) 
                  {StatusCode = StatusCodes.Status201Created};
             }
             scope.Complete();
             return new JsonResult(result.Errors){StatusCode = StatusCodes.Status400BadRequest};
         }
         [HttpPost("[action]")]
-        [Authorize(Roles="admin")]
-        //this update action is called smart because of unstrict requirements to
-        //request. You may choose what way to find user you need, by id, username or email.
-        //You can specify properties such as Email or Phone if you need and not specify if you
-        //don't need them. You may specify AddRoles and RemoveRoles
-        //as you please, this method will find what roles can be added and what
-        //roles can be removed and ignore anything else,
-        //so you don't need to remember user's roles list to be sure that
-        //you can remove some role or add.
         public async Task<IActionResult> SmartUpdate(UpdateUserRequest request){
             using var scope = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
             
-            IdentityUser user = null;
-            (IActionResult,IdentityUser) res = await FindUser(request);
+            ApplicationUser user = null;
+            (IActionResult,ApplicationUser) res = await FindUser(request,_userManager);
             if(res.Item1!=null)
                 return res.Item1;
             user = res.Item2;
@@ -136,14 +118,14 @@ namespace WebApi.Controllers
                 roles = roles.Except(removeRolesThatExistNow).ToList();
             }
             scope.Complete();
-            return Ok(new {Roles = roles,user = new User(){identityUser = user}});
+            return Ok(new {Roles = roles,user = new SimpleUser(){identityUser = user}});
 
         }
         public async Task<IActionResult> Delete(RemoveRequest request){
             using var scope = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
             
-            IdentityUser user = null;
-            (IActionResult,IdentityUser) res = await FindUser(request);
+            ApplicationUser user = null;
+            (IActionResult,ApplicationUser) res = await FindUser(request,_userManager);
             if(res.Item1!=null)
                 return res.Item1;
             user = res.Item2;
@@ -154,9 +136,9 @@ namespace WebApi.Controllers
                 return Ok(new {message="user deleted"});
             return BadRequest(result.Errors);
         }
-        protected async Task<(IActionResult,IdentityUser)> FindUser(INeedFindUser request){
+        public static async Task<(IActionResult,ApplicationUser)> FindUser(INeedFindUser request,UserManager<ApplicationUser> _userManager){
             var findByLower = request.FindUserBy.ToLower();
-            IdentityUser user = null;
+            ApplicationUser user = null;
             switch(findByLower){
                 case "username":
                     if(string.IsNullOrEmpty(request.UserName)) 

@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using WebApi.Models;
 using WebApi.Services;
-using WebAppApi.Data;
 using System.Linq;
 using Microsoft.AspNetCore.Identity;
 using WebApi.Entities;
@@ -10,6 +9,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.Http;
 using System.Collections.Generic;
+using WebApi.Models.Requests;
 
 namespace WebApi.Controllers
 {
@@ -24,7 +24,6 @@ namespace WebApi.Controllers
             _roleManager = roleManager;
         }   
         [HttpPost("[action]")]
-        [Authorize(Roles="admin")]
         public async Task<IActionResult> Add(CreateRoleRequest request){
             var role = new IdentityRole(request.Name);
             var result = await _roleManager.CreateAsync(role);

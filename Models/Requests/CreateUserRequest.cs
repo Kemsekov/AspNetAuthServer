@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Identity;
 using WebApi.Entities;
 
-namespace WebApi.Models
+namespace WebApi.Models.Requests
 {
     public class CreateUserRequest
     {
