@@ -1,4 +1,7 @@
-﻿namespace WebApi.Models
+﻿using System.Text.Json.Serialization;
+using WebApi.Entities;
+
+namespace WebApi.Models
 {
     public class AuthResult
     {

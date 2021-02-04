@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 
 namespace WebApi.Entities
 {
@@ -9,6 +10,8 @@ namespace WebApi.Entities
         {
             this.RefreshTokens = new List<RefreshToken>();
         }
+
         public ICollection<RefreshToken> RefreshTokens { get; set; }
+        public ICollection<IdentityUserRole<string>> UserRoles{get;set;}
     }
 }

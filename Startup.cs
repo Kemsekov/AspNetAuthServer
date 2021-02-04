@@ -17,6 +17,7 @@ using Microsoft.OpenApi.Models;
 using Pomelo.EntityFrameworkCore.MySql.Infrastructure;
 using WebApi.Options;
 using Microsoft.AspNetCore.Identity.UI.Services;
+using Microsoft.AspNetCore.Authorization;
 
 namespace WebApi
 {
@@ -58,7 +59,7 @@ namespace WebApi
                 .CharSetBehavior(CharSetBehavior.NeverAppend));
             });
             AddAuthentication(services);
-
+            services.AddAuthorization();
             services.AddScoped<IUserAuthenticationService, UserAuthenticationService>();
             services.AddControllers();
             services.AddSwaggerGen(c =>

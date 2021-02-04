@@ -13,6 +13,9 @@ using System.Transactions;
 using System;
 using WebApi.Models.Requests;
 using WebApi.Contexts;
+using Microsoft.AspNetCore.Authorization;
+using WebApi.Helpers;
+using Microsoft.EntityFrameworkCore;
 
 namespace WebApi.Controllers
 {
@@ -20,71 +23,56 @@ namespace WebApi.Controllers
     [Route("api/[controller]")]
     public class UsersController : ControllerBase
     {
+        private readonly IUserAuthenticationService _authentication;
         private readonly IEmailSender _emailSender;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly WebApiDbContext _context;
 
         public UsersController(WebApiDbContext context,
                                UserManager<ApplicationUser> userManager,
-                               IEmailSender emailSender)
+                               IEmailSender emailSender,
+                               IUserAuthenticationService authentication)
         {
+            _authentication = authentication;
             _emailSender = emailSender;
             _userManager = userManager;
             _context = context;
         }
 
-        [HttpPost("Authenticate")]
-        public IActionResult Authenticate(AuthenticateRequest model)
+        [HttpPost("[action]")]
+        public async Task<IActionResult> Authenticate(AuthenticateRequest model)
         {
-            throw new NotImplementedException();
+            var result = await _authentication.AuthenticateAsync(model);
+            if(result.IsAuthenticated)
+                return Ok(result);
+            else
+                return new JsonResult(new {message="Wrong username or password"});
         }
 
+        [HttpPost("[action]")]
+        public async Task<IActionResult> RefreshAcessToken(RefreshAcessTokenRequest request){
+            var result = await _authentication.RefreshTokenAsync(request.RefreshToken);
+            if(result.IsAuthenticated)
+                return Ok(result);
+            else
+                return new JsonResult(new {message="Wrong username or password"});
+        }
+        
         [HttpGet("[action]")]
+        [Authorize(Roles="admin,modifier")]
         public async Task<IActionResult> GetAll()
         {
-            var result = _context.Users
-            .Join(_context.UserRoles,
-                    u=>u.Id,
-                    r=>r.UserId,
-                    (u,r)=>new 
-                    {
-                        User = u,
-                        Role = r
-                    })
-            .Join(_context.Roles,
-                    userAndRoleId=>userAndRoleId.Role.RoleId,
-                    r2=>r2.Id,
-                    (userAndRoleId,r2)=>new 
-                    {
-                        User = new SimpleUser{identityUser= userAndRoleId.User},
-                        Role = r2.Name
-                    }        
-            );
-            return Ok(result);
+            var usersAndRoles = _context.Users.ToList().Select(u=>new {User=new SimpleUser(){identityUser = u},Roles= _userManager.GetRolesAsync(u).GetAwaiter().GetResult()});
+            return Ok(usersAndRoles);
         }
         [HttpGet("[action]")]
+        [Authorize(Roles="admin,modifier")]
         public async Task<IActionResult> GetAllRaw(){
-            var result = _context.Users
-            .Join(_context.UserRoles,
-                    u=>u.Id,
-                    r=>r.UserId,
-                    (u,r)=>new 
-                    {
-                        User = u,
-                        Role = r
-                    })
-            .Join(_context.Roles,
-                    userAndRoleId=>userAndRoleId.Role.RoleId,
-                    r2=>r2.Id,
-                    (userAndRoleId,r2)=>new 
-                    {
-                        User = userAndRoleId.User,
-                        Role = r2.Name
-                    }        
-            );
-            return Ok(result);
+            var usersAndRoles = _context.Users.ToList().Select(u=>new {User= u,Roles= _userManager.GetRolesAsync(u).GetAwaiter().GetResult()});                        
+            return Ok(usersAndRoles);
         }
         [HttpGet("[action]")]
+        [Authorize(Roles="admin,modifier")]
         public async Task<IActionResult> GetById(string id){
             var user = new SimpleUser(){identityUser= await _userManager.FindByIdAsync(id)};
             if(user!=null)
@@ -92,6 +80,7 @@ namespace WebApi.Controllers
             return new JsonResult(new {message="There is no user with such id"}){StatusCode = StatusCodes.Status404NotFound};
         }
         [HttpGet("[action]")]
+        [Authorize(Roles="admin,modifier")]
         public async Task<IActionResult> GetByIdRaw(string id){
             var user = await _userManager.FindByIdAsync(id);
             if(user!=null)
@@ -100,6 +89,7 @@ namespace WebApi.Controllers
         }
 
         [HttpPost("[action]")]
+        [Authorize(Roles="admin,modifier")]
         public async Task<IActionResult> Add(CreateUserRequest user){
             var identityUser = new ApplicationUser(){
                 Email = user.Email,
@@ -121,6 +111,7 @@ namespace WebApi.Controllers
             return new JsonResult(result.Errors){StatusCode = StatusCodes.Status400BadRequest};
         }
         [HttpPost("[action]")]
+        [Authorize(Roles="admin,modifier")]
         public async Task<IActionResult> SmartUpdate(UpdateUserRequest request){
             using var scope = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
             ApplicationUser user = null;
@@ -153,6 +144,7 @@ namespace WebApi.Controllers
             return Ok(new {Roles = await _userManager.GetRolesAsync(user),user = new SimpleUser(){identityUser = user}});
         }
         [HttpDelete("[action]")]
+        [Authorize(Roles="admin,modifier")]
         public async Task<IActionResult> Delete(RemoveRequest request){
             using var scope = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
             
@@ -170,6 +162,7 @@ namespace WebApi.Controllers
                 return Ok(new {message="user deleted"});
             return BadRequest(result.Errors);
         }
+        [NonAction]
         public static async Task<(IActionResult, IQueryable<ApplicationUser>)> FindUser(INeedFindUser request,UserManager<ApplicationUser> _userManager){
             var findByLower = request.FindUserBy.ToLower();
             var query = _userManager.Users.AsQueryable();

@@ -1,4 +1,5 @@
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.Mvc;
 using WebApi.Models;
@@ -17,6 +18,7 @@ namespace WebApi.Controllers
             _emailSender = emailSender;
         }
         [HttpGet("[action]")]
+        [Authorize(Roles="admin")]
         public async Task<IActionResult> SendEmail(SendEmailRequest request){
 
             try{

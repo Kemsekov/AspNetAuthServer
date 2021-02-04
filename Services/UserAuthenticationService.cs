@@ -44,16 +44,16 @@ namespace WebApi.Services
             var pass_check = await _userManager.CheckPasswordAsync(user, authModel.Password);
             if (!pass_check)
                 return result;
-
             result.Token = await GenerateTokenAsync(user);
             result.RefreshToken = await GenerateRefreshTokenAsync();
             var refreshToken = new RefreshToken()
             {
                 IsActive = true,
                 CreatedOn = DateTime.UtcNow,
-                ExpiresOn = DateTime.UtcNow.AddDays(1),
+                //ExpiresOn = DateTime.UtcNow.AddDays(1),
                 Token = result.RefreshToken
             };
+            user.RefreshTokens.Clear();
             user.RefreshTokens.Add(refreshToken);
             _context.Entry(user).State = EntityState.Modified;
             await _context.SaveChangesAsync();
@@ -122,7 +122,7 @@ namespace WebApi.Services
                 claims: claims,
                 signingCredentials: signingCredentials,
                 issuer: _jwtOptions?.Value?.Issuer,
-                expires: DateTime.UtcNow.AddMinutes(_jwtOptions.Value.Expiry),
+                expires: DateTime.UtcNow.AddSeconds(_jwtOptions.Value.Expiry),
                 audience: _jwtOptions?.Value?.Audience
                 );
             token = new JwtSecurityTokenHandler().WriteToken(securityToken);
