@@ -44,16 +44,22 @@ namespace WebApi.Services
             var pass_check = await _userManager.CheckPasswordAsync(user, authModel.Password);
             if (!pass_check)
                 return result;
+            if(_context.RefreshTokens
+                .Where(rf=>rf.UserId==user.Id)
+                .FirstOrDefault() is RefreshToken refresh_token){
+                    result.RefreshToken = refresh_token.Token;
+                    result.Token = await GenerateTokenAsync(user); 
+                    return result;
+            }
+
             result.Token = await GenerateTokenAsync(user);
             result.RefreshToken = await GenerateRefreshTokenAsync();
             var refreshToken = new RefreshToken()
             {
-                IsActive = true,
                 CreatedOn = DateTime.UtcNow,
-                //ExpiresOn = DateTime.UtcNow.AddDays(1),
                 Token = result.RefreshToken
             };
-            user.RefreshTokens.Clear();
+            
             user.RefreshTokens.Add(refreshToken);
             _context.Entry(user).State = EntityState.Modified;
             await _context.SaveChangesAsync();
@@ -71,31 +77,7 @@ namespace WebApi.Services
             if (user == null)
                 return result;
 
-            var existingRefreshToken = user.RefreshTokens.First(t => t.Token.Equals(refreshToken));
-            if (!existingRefreshToken.IsActive
-                || existingRefreshToken.RevokedOn.HasValue
-                || DateTime.UtcNow >= existingRefreshToken.ExpiresOn)
-            {
-                return result;
-            }
-
-            //expire and invalidate old token. 
-            existingRefreshToken.IsActive = false;
-            existingRefreshToken.RevokedOn = DateTime.UtcNow;
-
-            //issue a new token/refresh token
-            var newRefresh = new RefreshToken
-            {
-                IsActive = true,
-                CreatedOn = DateTime.UtcNow,
-                ExpiresOn = DateTime.UtcNow.AddDays(1)
-            };
-            newRefresh.Token = await GenerateRefreshTokenAsync();
-            user.RefreshTokens.Add(newRefresh);
-            _context.Entry(user).State = EntityState.Modified;
-            await _context.SaveChangesAsync();
-
-            result.RefreshToken = newRefresh.Token;
+            result.RefreshToken = user.RefreshTokens.FirstOrDefault().Token;
             result.Token = await GenerateTokenAsync(user);
             return result;
 

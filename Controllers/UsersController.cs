@@ -59,7 +59,7 @@ namespace WebApi.Controllers
         }
         
         [HttpGet("[action]")]
-        [Authorize(Roles="admin,modifier")]
+        //[Authorize(Roles="admin,modifier")]
         public async Task<IActionResult> GetAll()
         {
             var usersAndRoles = _context.Users
@@ -89,41 +89,29 @@ namespace WebApi.Controllers
             return Ok(result.Select(res=>new {User=new SimpleUser{identityUser= res.User},Roles=res.Roles}));
         }
         [HttpGet("[action]")]
-        [Authorize(Roles="admin,modifier")]
+        //[Authorize(Roles="admin,modifier")]
         public async Task<IActionResult> GetAllRaw(){
-            var usersAndRoles = _context.Users
-                .Join(_context.UserRoles,
-                    u=>u.Id,
-                    ur=>ur.UserId,
-                    (u,ur)=>new {User=u,RoleId=ur.RoleId})
-                .Join(_context.Roles,
-                    u=>u.RoleId,
-                    r=>r.Id,
-                    (u,r)=>new {User=u.User,RoleName=r.Name})
-                .ToList();
-            
-            var result = new List<(ApplicationUser User,List<string> Roles)>();
-
-            usersAndRoles.ForEach(el=>{
-                if (result.Find(t=>t.User==el.User) is (ApplicationUser,List<string>) found){
-                    found.Roles ??= new List<string>();
-                    found.Item2.Add(el.RoleName);
-                }
-                else{
-                    var Roleslist = new List<string>();
-                    Roleslist.Add(el.RoleName);
-                    result.Add((el.User,Roleslist));
-                }
-            });
-            return Ok(result.Select(res=>new {User=res.User,Roles=res.Roles}));
-            
+            var roles = _context.Roles.ToList();
+            var userRoles = _context.UserRoles.ToList();
+            var result = _context.Users
+                        .ToList()
+                        .Select(u=>
+                            new {
+                            User = u,
+                            Roles = userRoles
+                                .Where(ur=>ur.UserId==u.Id)
+                                .Select(ur=>roles
+                                    .Where(r=>r.Id==ur.RoleId)
+                                    .FirstOrDefault())
+                            });
+            return Ok(result);
         }
         [HttpGet("[action]")]
-        [Authorize(Roles="admin,modifier")]
+        //[Authorize(Roles="admin,modifier")]
         public async Task<IActionResult> GetById(string id){
-            var user = new SimpleUser(){identityUser= await _userManager.FindByIdAsync(id)};
+            var user =  await _userManager.FindByIdAsync(id);
             if(user!=null)
-            return new JsonResult(user){StatusCode = StatusCodes.Status200OK};
+            return new JsonResult(new {user}){StatusCode = StatusCodes.Status200OK};
             return new JsonResult(new {message="There is no user with such id"}){StatusCode = StatusCodes.Status404NotFound};
         }
         [HttpGet("[action]")]

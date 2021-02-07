@@ -16,5 +16,6 @@ namespace WebApi.Contexts
             base.OnModelCreating(builder);
             builder.ApplyConfigurationsFromAssembly(typeof(WebApiDbContext).Assembly);
         }   
+        public DbSet<RefreshToken> RefreshTokens{get;set;}
     }
 }
