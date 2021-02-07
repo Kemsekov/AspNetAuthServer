@@ -62,14 +62,61 @@ namespace WebApi.Controllers
         [Authorize(Roles="admin,modifier")]
         public async Task<IActionResult> GetAll()
         {
-            var usersAndRoles = _context.Users.ToList().Select(u=>new {User=new SimpleUser(){identityUser = u},Roles= _userManager.GetRolesAsync(u).GetAwaiter().GetResult()});
-            return Ok(usersAndRoles);
+            var usersAndRoles = _context.Users
+                .Join(_context.UserRoles,
+                    u=>u.Id,
+                    ur=>ur.UserId,
+                    (u,ur)=>new {User=u,RoleId=ur.RoleId})
+                .Join(_context.Roles,
+                    u=>u.RoleId,
+                    r=>r.Id,
+                    (u,r)=>new {User=u.User,RoleName=r.Name})
+                .ToList();
+            
+            var result = new List<(ApplicationUser User,List<string> Roles)>();
+
+            usersAndRoles.ForEach(el=>{
+                if (result.Find(t=>t.User==el.User) is (ApplicationUser,List<string>) found){
+                    found.Roles ??= new List<string>();
+                    found.Item2.Add(el.RoleName);
+                }
+                else{
+                    var Roleslist = new List<string>();
+                    Roleslist.Add(el.RoleName);
+                    result.Add((el.User,Roleslist));
+                }
+            });
+            return Ok(result.Select(res=>new {User=new SimpleUser{identityUser= res.User},Roles=res.Roles}));
         }
         [HttpGet("[action]")]
         [Authorize(Roles="admin,modifier")]
         public async Task<IActionResult> GetAllRaw(){
-            var usersAndRoles = _context.Users.ToList().Select(u=>new {User= u,Roles= _userManager.GetRolesAsync(u).GetAwaiter().GetResult()});                        
-            return Ok(usersAndRoles);
+            var usersAndRoles = _context.Users
+                .Join(_context.UserRoles,
+                    u=>u.Id,
+                    ur=>ur.UserId,
+                    (u,ur)=>new {User=u,RoleId=ur.RoleId})
+                .Join(_context.Roles,
+                    u=>u.RoleId,
+                    r=>r.Id,
+                    (u,r)=>new {User=u.User,RoleName=r.Name})
+                .ToList();
+            
+            var result = new List<(ApplicationUser User,List<string> Roles)>();
+
+            usersAndRoles.ForEach(el=>{
+                if (result.Find(t=>t.User==el.User) is (ApplicationUser,List<string>) found){
+                    found.Roles ??= new List<string>();
+                    found.Item2.Add(el.RoleName);
+                }
+                else{
+                    var Roleslist = new List<string>();
+                    Roleslist.Add(el.RoleName);
+                    result.Add((el.User,Roleslist));
+                }
+            });
+            return Ok(result.Select(res=>new {User=res.User,Roles=res.Roles}));
+            
         }
         [HttpGet("[action]")]
         [Authorize(Roles="admin,modifier")]

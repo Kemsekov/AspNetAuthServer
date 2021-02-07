@@ -12,6 +12,5 @@ namespace WebApi.Entities
         }
 
         public ICollection<RefreshToken> RefreshTokens { get; set; }
-        public ICollection<IdentityUserRole<string>> UserRoles{get;set;}
     }
 }

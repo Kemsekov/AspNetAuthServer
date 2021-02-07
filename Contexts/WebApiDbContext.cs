@@ -15,9 +15,6 @@ namespace WebApi.Contexts
         {
             base.OnModelCreating(builder);
             builder.ApplyConfigurationsFromAssembly(typeof(WebApiDbContext).Assembly);
-            builder.Entity<ApplicationUser>().Property(u=>u.UserRoles)
-                                                    .HasColumnName("AspNetUsersRoles");
-
         }   
     }
 }
