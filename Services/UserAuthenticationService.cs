@@ -32,7 +32,11 @@ namespace WebApi.Services
             _jwtOptions = jwtOptions;
             _context = context;
         }
-
+        /// <summary>
+        /// Authenticate by login and password. Always deletes old refresh token, create new one and create new access token
+        /// </summary>
+        /// <param name="authModel"></param>
+        /// <returns>refresh and access token</returns>
         public async Task<AuthResult> AuthenticateAsync(AuthenticateRequest authModel)
         {
             var result = new AuthResult();
@@ -47,9 +51,7 @@ namespace WebApi.Services
             if(_context.RefreshTokens
                 .Where(rf=>rf.UserId==user.Id)
                 .FirstOrDefault() is RefreshToken refresh_token){
-                    result.RefreshToken = refresh_token.Token;
-                    result.Token = await GenerateTokenAsync(user); 
-                    return result;
+                    _context.RefreshTokens.Remove(refresh_token);
             }
 
             result.Token = await GenerateTokenAsync(user);
@@ -66,7 +68,12 @@ namespace WebApi.Services
             return result;
         }
 
-        public async Task<AuthResult> RefreshTokenAsync(string refreshToken)
+        /// <summary>
+        /// Get new access token by refresh token
+        /// </summary>
+        /// <param name="refreshToken"></param>
+        /// <returns>Access token if refresh token is valid</returns>
+        public async Task<string> RefreshTokenAsync(string refreshToken)
         {
             var result = new AuthResult();
             var user = await _context.Users
@@ -75,11 +82,9 @@ namespace WebApi.Services
                 .Any(r => r.Token.Equals(refreshToken)));
 
             if (user == null)
-                return result;
+                return null;
 
-            result.RefreshToken = user.RefreshTokens.FirstOrDefault().Token;
-            result.Token = await GenerateTokenAsync(user);
-            return result;
+            return await GenerateTokenAsync(user);
 
         }
         private async Task<string> GenerateTokenAsync(ApplicationUser user)

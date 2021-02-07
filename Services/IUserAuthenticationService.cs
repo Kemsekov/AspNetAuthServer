@@ -7,6 +7,6 @@ namespace WebApi.Services
     public interface IUserAuthenticationService
     {
         Task<AuthResult> AuthenticateAsync(AuthenticateRequest authModel);
-        Task<AuthResult> RefreshTokenAsync(string refreshToken);
+        Task<string> RefreshTokenAsync(string refreshToken);
     }
 }

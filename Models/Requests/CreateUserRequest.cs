@@ -19,6 +19,7 @@ namespace WebApi.Models.Requests
         [EmailAddress]
         public string Email{get;set;}
         [Phone]
+        [MaxLength(256)]
         public string Phone{get;set;}
     }
 }
