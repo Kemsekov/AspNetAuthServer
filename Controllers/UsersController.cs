@@ -16,6 +16,8 @@ using WebApi.Contexts;
 using Microsoft.AspNetCore.Authorization;
 using WebApi.Helpers;
 using Microsoft.EntityFrameworkCore;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 
 namespace WebApi.Controllers
 {
@@ -77,9 +79,11 @@ namespace WebApi.Controllers
                             });
             return Ok(result);
         }
+
         [HttpGet("[action]")]
-        [Authorize(Roles="admin,modifier")]
+        [Authorize(Roles="admin,moderator")]
         public async Task<IActionResult> GetAllRaw(){
+
             var roles = _context.Roles.ToList();
             var userRoles = _context.UserRoles.ToList();
             var result = _context.Users

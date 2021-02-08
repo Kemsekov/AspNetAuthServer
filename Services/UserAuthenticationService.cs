@@ -97,10 +97,9 @@ namespace WebApi.Services
             claims.AddRange(new Claim[]
             {
                new Claim(ClaimTypes.Name, user.UserName),
-               new Claim(JwtRegisteredClaimNames.Sub, user.Email),
+               new Claim(ClaimTypes.Email, user.Email),
                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-                 new Claim(JwtRegisteredClaimNames.Sub,user.Id.ToString())
-
+               new Claim(JwtRegisteredClaimNames.Sub,user.Id.ToString())
             });
 
             var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtOptions?.Value?.Key));
