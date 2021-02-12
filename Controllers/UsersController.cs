@@ -100,7 +100,19 @@ namespace WebApi.Controllers
             else
                 return new JsonResult(new {message="Wrong RefreshToken"});
         }
-        
+        [HttpGet]
+        [Authorize]
+        public async Task<IActionResult> UpdateAccessToken(){
+            var userid = User.Claims.FirstOrDefault(c=>c.Type==ClaimTypes.NameIdentifier).Value;
+            var user = await _userManager.FindByIdAsync(userid);
+            var securityStamp = User.Claims.FirstOrDefault(c=>c.Type==ClaimTypes.Sid);
+            if(securityStamp.Value!=user.SecurityStamp){
+                return new JsonResult(new {message="Users credentials recently changed, so token is denied"}){StatusCode=StatusCodes.Status403Forbidden};
+            }
+            var refresh_token = _context.RefreshTokens.FirstOrDefault(t=>t.UserId==userid);
+            var token = await _authentication.RefreshTokenAsync(refresh_token.Token);
+            return Ok(new {token});
+        }
         [HttpGet]
         [Authorize(Roles="admin,modifier")]
         public async Task<IActionResult> GetAll()
@@ -197,7 +209,6 @@ namespace WebApi.Controllers
             user.Email=request.Email ?? user.Email;
             user.UserName=request.UserName ?? user.UserName;
             user.PhoneNumber=request.Phone ?? user.PhoneNumber;
-            
             var resultupdate = await _userManager.UpdateAsync(user);
             if(!resultupdate.Succeeded){
                 return new JsonResult(new {message="Error while attempt to update user",resultupdate.Errors}){StatusCode=StatusCodes.Status406NotAcceptable};
@@ -213,6 +224,7 @@ namespace WebApi.Controllers
                 var removeRolesThatExistNow = roles.Intersect(request.RemoveRoles);
                 var result = await _userManager.RemoveFromRolesAsync(user,removeRolesThatExistNow);
             }
+            await _userManager.UpdateSecurityStampAsync(user);
             return Ok(new {Roles = await _userManager.GetRolesAsync(user),user = new SimpleUser(){identityUser = user}});
             }
             finally{

@@ -85,8 +85,8 @@ namespace WebApi.Services
                 return null;
 
             return await GenerateTokenAsync(user);
-
         }
+
         private async Task<string> GenerateTokenAsync(ApplicationUser user)
         {
             var token = string.Empty;
@@ -99,7 +99,8 @@ namespace WebApi.Services
                new Claim(ClaimTypes.Name, user.UserName),
                new Claim(ClaimTypes.Email, user.Email),
                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-               new Claim(JwtRegisteredClaimNames.Sub,user.Id.ToString())
+               new Claim(JwtRegisteredClaimNames.Sub,user.Id.ToString()),
+               new Claim(ClaimTypes.Sid,user.SecurityStamp)
             });
 
             var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtOptions?.Value?.Key));

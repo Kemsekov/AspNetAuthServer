@@ -17,6 +17,7 @@ namespace WebApi.Models.Requests
         [MinLength(8)]
         [MaxLength(256)]
         public string Password{get;set;}
+        public string OldPassword{get;set;}
         [Phone]
         public string Phone{get;set;}
     }
