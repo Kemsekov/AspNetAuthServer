@@ -54,19 +54,10 @@ namespace WebApi.Controllers
         [Authorize(Roles="admin")]
         public async Task<IActionResult> FindRaw(FindWhereRequest request){
             ApplicationUser user = null;
-            if(!string.IsNullOrEmpty(request.Id)){
-                user = await _context.Users.FindAsync(request.Id);
-            }
-            if(!string.IsNullOrEmpty(request.UserName)){
-                request.UserName = request.UserName.ToUpper(); 
-                user = await _context.Users.FirstOrDefaultAsync(u=>u.NormalizedUserName==request.UserName);
-            }
-            if(!string.IsNullOrEmpty(request.Email)){
-                request.Email = request.Email.ToUpper(); 
-                user = await _context.Users.FirstOrDefaultAsync(u=>u.NormalizedEmail==request.Email);
-            }
-            if(user is null)
-            return NotFound(new {message="user not found"});
+            var res = await FindUser(request,_userManager);
+            if(res.Error!=null)
+                return res.Error;
+            user = res.User;
 
             return new JsonResult(new {user,Roles=await _userManager.GetRolesAsync(user)}) { StatusCode=StatusCodes.Status302Found};
         }
@@ -74,21 +65,10 @@ namespace WebApi.Controllers
         [Authorize(Roles="admin,moderator")]
         public async Task<IActionResult> Find(FindWhereRequest request){
             ApplicationUser user = null;
-            if(!string.IsNullOrEmpty(request.Id)){
-                user = await _context.Users.FindAsync(request.Id);
-            }
-            if(!string.IsNullOrEmpty(request.UserName)){
-                request.UserName = request.UserName.ToUpper(); 
-                user = await _context.Users.FirstOrDefaultAsync(u=>u.NormalizedUserName==request.UserName);
-            }
-            if(!string.IsNullOrEmpty(request.Email)){
-                request.Email = request.Email.ToUpper(); 
-                user = await _context.Users.FirstOrDefaultAsync(u=>u.NormalizedEmail==request.Email);
-            }
-
-            if(user is null)
-            return NotFound(new {message="user not found"});
-
+            var res = await FindUser(request,_userManager);
+            if(res.Error!=null)
+                return res.Error;
+            user = res.User;
             return new JsonResult(new {User = new SimpleUser{identityUser= user},Roles = await _userManager.GetRolesAsync(user)}) { StatusCode=StatusCodes.Status302Found};
         }
 
@@ -104,13 +84,12 @@ namespace WebApi.Controllers
         [Authorize]
         public async Task<IActionResult> UpdateAccessToken(){
             var userid = User.Claims.FirstOrDefault(c=>c.Type==ClaimTypes.NameIdentifier).Value;
-            var user = await _userManager.FindByIdAsync(userid);
-            var securityStamp = User.Claims.FirstOrDefault(c=>c.Type==ClaimTypes.Sid);
-            if(securityStamp.Value!=user.SecurityStamp){
+            var securityStamp = User.Claims.FirstOrDefault(c=>c.Type==ClaimTypes.Sid).Value;
+            
+            var token = await _authentication.UpdateTokenAsync(userid,securityStamp);
+            if(token==null){
                 return new JsonResult(new {message="Users credentials recently changed, so token is denied"}){StatusCode=StatusCodes.Status403Forbidden};
             }
-            var refresh_token = _context.RefreshTokens.FirstOrDefault(t=>t.UserId==userid);
-            var token = await _authentication.RefreshTokenAsync(refresh_token.Token);
             return Ok(new {token});
         }
         [HttpGet]
@@ -195,24 +174,35 @@ namespace WebApi.Controllers
         [HttpPost]
         [Authorize(Roles="admin,moderator")]
         public async Task<IActionResult> Update(UpdateUserRequest request){
-            using var scope = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
-            try{
+            var scope = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
             ApplicationUser user = null;
-            (IActionResult, IQueryable<ApplicationUser>) res = await FindUser(request,_userManager);
-            if(res.Item1!=null){
-                return res.Item1;
+
+            var res = await FindUser(request,_userManager);
+            if(res.Error!=null){
+                return res.Error;
             }
-            user = res.Item2.FirstOrDefault();
-            if(user is null){
-                return new JsonResult(new {message="User is not found"}) {StatusCode=StatusCodes.Status404NotFound};
-            }
+
+            user = res.User;
+            
             user.Email=request.Email ?? user.Email;
             user.UserName=request.UserName ?? user.UserName;
             user.PhoneNumber=request.Phone ?? user.PhoneNumber;
+            user.Name = request.Name ?? user.Name;
+            
+            IdentityResult pass_change = null;
+            if(!string.IsNullOrEmpty(request.NewPassword) && !string.IsNullOrEmpty(request.OldPassword))
+            pass_change = await _userManager.ChangePasswordAsync(user,request.OldPassword,request.NewPassword);
+            
             var resultupdate = await _userManager.UpdateAsync(user);
+
             if(!resultupdate.Succeeded){
+                List<IdentityError> summary = new List<IdentityError>();
+                summary.AddRange(resultupdate.Errors ?? new List<IdentityError>());
+                if(pass_change!=null && !pass_change.Succeeded)
+                summary.AddRange(pass_change.Errors ?? new List<IdentityError>());
                 return new JsonResult(new {message="Error while attempt to update user",resultupdate.Errors}){StatusCode=StatusCodes.Status406NotAcceptable};
             }
+
             IList<string> roles = null;
             if(request.AddRoles is not null && request.AddRoles.Any()){
                 roles = await _userManager.GetRolesAsync(user);
@@ -224,12 +214,13 @@ namespace WebApi.Controllers
                 var removeRolesThatExistNow = roles.Intersect(request.RemoveRoles);
                 var result = await _userManager.RemoveFromRolesAsync(user,removeRolesThatExistNow);
             }
+            if(_context.RefreshTokens.FirstOrDefault(t=>t.UserId==user.Id) is RefreshToken token)
+            _context.RefreshTokens.Remove(token);
             await _userManager.UpdateSecurityStampAsync(user);
+            await _context.SaveChangesAsync();
+            scope.Complete();
+            scope.Dispose();
             return Ok(new {Roles = await _userManager.GetRolesAsync(user),user = new SimpleUser(){identityUser = user}});
-            }
-            finally{
-                scope.Complete();
-            }
         }
         [HttpDelete]
         [Authorize(Roles="admin,moderator")]
@@ -237,43 +228,45 @@ namespace WebApi.Controllers
             using var scope = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
             
             ApplicationUser user = null;
-            (IActionResult,IQueryable<ApplicationUser>) res = await FindUser(request,_userManager);
-            if(res.Item1!=null)
-                return res.Item1;
-            user = res.Item2.FirstOrDefault();
-            if(user is null)
-                return new JsonResult(new {message="User is not found"}){StatusCode=StatusCodes.Status404NotFound};
+            var res = await FindUser(request,_userManager);
+            if(res.Error!=null)
+                return res.Error;
+            
+            user = res.User;
 
             var result = await _userManager.DeleteAsync(user);
             scope.Complete();
             if(result.Succeeded)
-                return Ok(new {message="user deleted"});
+                return Ok(new {message="User deleted"});
             return BadRequest(result.Errors);
         }
         [NonAction]
-        public static async Task<(IActionResult, IQueryable<ApplicationUser>)> FindUser(INeedFindUser request,UserManager<ApplicationUser> _userManager){
+        public static async Task<(IActionResult Error, ApplicationUser User)> FindUser(NeedFindUser request,UserManager<ApplicationUser> _userManager){
             var findByLower = request.FindUserBy.ToLower();
-            var query = _userManager.Users.AsQueryable();
+            var query = _userManager.Users;
+            ApplicationUser user = null;
             switch(findByLower){
                 case "username":
                     if(string.IsNullOrEmpty(request.UserName)) 
                     return (new JsonResult(new {message=$"Empty or null {findByLower}"}){StatusCode=StatusCodes.Status400BadRequest},null);
-                    query = query.Where(u=>u.UserName==request.UserName);
+                    user = query.FirstOrDefault(u=>u.UserName==request.UserName);
                 break;
                 case "email":
                     if(string.IsNullOrEmpty(request.Email)) 
                     return (new JsonResult(new {message=$"Empty or null {findByLower}"}){StatusCode=StatusCodes.Status400BadRequest},null);
-                    query = query.Where(u=>u.Email==request.Email);
+                    user = query.FirstOrDefault(u=>u.Email==request.Email);
                 break;
                 case "id" :
                     if(string.IsNullOrEmpty(request.Id)) 
                     return (new JsonResult(new {message=$"Empty or null {findByLower}"}){StatusCode=StatusCodes.Status400BadRequest},null);
-                    query = query.Where(u=>u.Id==request.Id);
+                    user = query.FirstOrDefault(u=>u.Id==request.Id);
                 break;
                 default:
                     return (new JsonResult(new {message="Wrong 'findUserBy' argument. It should be 'user' or 'email' or 'id'"}){StatusCode=StatusCodes.Status400BadRequest},null);
             };
-            return (null,query);
+            if(user==null)
+            return (new JsonResult(new {message="User not found"}){StatusCode=StatusCodes.Status404NotFound},null);
+            return (null,user);
         }
     }
 }

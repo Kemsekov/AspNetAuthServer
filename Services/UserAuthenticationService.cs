@@ -87,6 +87,20 @@ namespace WebApi.Services
             return await GenerateTokenAsync(user);
         }
 
+        public async Task<string> UpdateTokenAsync(string userid,string securityStampFromJWToken){
+            var user = await _userManager.FindByIdAsync(userid);
+            if(user==null) return null;
+
+            //check if user's credentials changed recently. If it is, then we cannot trust current request.
+            if(securityStampFromJWToken!=user.SecurityStamp){
+                return null;
+            }
+            var refresh_token = _context.RefreshTokens.FirstOrDefault(t=>t.UserId==user.Id);
+            var token = await RefreshTokenAsync(refresh_token.Token);
+            
+            return token;
+        }
+
         private async Task<string> GenerateTokenAsync(ApplicationUser user)
         {
             var token = string.Empty;
