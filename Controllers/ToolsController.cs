@@ -8,7 +8,7 @@ using WebApi.Models.Requests;
 namespace WebApi.Controllers
 {
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("[controller]/[action]")]
     public class ToolsController : ControllerBase
     {
         private readonly IEmailSender _emailSender;
@@ -17,7 +17,7 @@ namespace WebApi.Controllers
         {
             _emailSender = emailSender;
         }
-        [HttpGet("[action]")]
+        [HttpPost]
         [Authorize(Roles="admin")]
         public async Task<IActionResult> SendEmail(SendEmailRequest request){
 

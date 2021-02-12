@@ -31,7 +31,7 @@ namespace WebApi
             WebHost.CreateDefaultBuilder(args)
                 .UseStartup<Startup>()
                 .UseSerilog()
-                .UseUrls("http://localhost:5555")
+                .UseUrls("http://localhost:5000")
                 .Build();
 
         public static async Task Main(string[] args)

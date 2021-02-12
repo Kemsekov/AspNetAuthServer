@@ -15,7 +15,7 @@ using Microsoft.AspNetCore.Authorization;
 namespace WebApi.Controllers
 {
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("[controller]/[action]")]
     public class RolesController  : ControllerBase
     {
         private readonly RoleManager<IdentityRole> _roleManager;
@@ -24,7 +24,7 @@ namespace WebApi.Controllers
         {
             _roleManager = roleManager;
         }   
-        [HttpPost("[action]")]
+        [HttpPost]
         [Authorize(Roles="admin")]
         public async Task<IActionResult> Add(CreateRoleRequest request){
             var role = new IdentityRole(request.Name);

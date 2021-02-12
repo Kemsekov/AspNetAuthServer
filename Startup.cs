@@ -14,7 +14,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using Pomelo.EntityFrameworkCore.MySql.Infrastructure;
 using WebApi.Options;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -50,20 +49,16 @@ namespace WebApi
                 .AddEntityFrameworkStores<WebApiDbContext>()
                 .AddDefaultTokenProviders();
             services.AddSingleton<IEmailSender,EmailSender>();
-            services.AddDbContext<WebApiDbContext>(builder=>
-            {
-                builder.UseMySql(
-                Configuration.GetConnectionString("WebApi"),
-                new MySqlServerVersion(new Version(8, 0, 23)),
-                mySqlOptions => mySqlOptions
-                .CharSetBehavior(CharSetBehavior.NeverAppend));
-            });
+            services.AddDbContextPool<WebApiDbContext>(options =>
+            options.UseNpgsql(Configuration.GetConnectionString("WebApi")));
+
             AddAuthentication(services);
             services.AddAuthorization();
             services.AddScoped<IUserAuthenticationService, UserAuthenticationService>();
             services.AddControllers();
             services.AddSwaggerGen(c =>
             {
+                
                 c.SwaggerDoc("v1", new OpenApiInfo { Title = "WebApi", Version = "v1" });
             });
             services.AddCors(c =>{ c.AddPolicy("dev", opt =>
@@ -72,7 +67,7 @@ namespace WebApi
                 .WithExposedHeaders(AuthSettings.EXPIRED_TOKEN_HEADER) //https://stackoverflow.com/questions/37897523/axios-get-access-to-response-header-fields#answer-55714686
                 .AllowAnyMethod()
                 .AllowCredentials()
-                .WithOrigins("http://localhost:4444");
+                .WithOrigins("http://localhost");
             });
             c.AddPolicy("prod",opt=>{
                 //todo later
@@ -82,6 +77,7 @@ namespace WebApi
 
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
+            app.UsePathBase("/api");
             if (env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
@@ -90,8 +86,6 @@ namespace WebApi
                 app.UseCors("dev");
             }
             else{
-                app.UseSwagger();
-                app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "WebApi v1"));
                 app.UseCors("prod");
             }
 
