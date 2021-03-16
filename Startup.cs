@@ -17,7 +17,8 @@ using Microsoft.OpenApi.Models;
 using WebApi.Options;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.Authorization;
-
+using Polly;
+using WebApi.HealthCheck;
 namespace WebApi
 {
     public class Startup
@@ -56,6 +57,15 @@ namespace WebApi
             services.AddAuthorization();
             services.AddScoped<IUserAuthenticationService, UserAuthenticationService>();
             services.AddControllers();
+
+            //just an example of http polly
+            services.AddHttpClient<IEmailSender>()
+                .AddTransientHttpErrorPolicy(builder=>builder.WaitAndRetryAsync(10,retryAttempt=>TimeSpan.FromSeconds(Math.Pow(2,retryAttempt))))
+                .AddTransientHttpErrorPolicy(builder=>builder.CircuitBreakerAsync(3,TimeSpan.FromSeconds(10)));
+            
+            services.AddHealthChecks()
+                .AddCheck<EmailSenderHealthCheck>(nameof(IEmailSender));
+            
             services.AddSwaggerGen(c =>
             {
                 
@@ -98,6 +108,7 @@ namespace WebApi
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapControllers();
+                endpoints.MapHealthChecks("/health");
             });
         }
         private void AddAuthentication(IServiceCollection services)

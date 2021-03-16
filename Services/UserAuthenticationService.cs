@@ -48,21 +48,13 @@ namespace WebApi.Services
             var pass_check = await _userManager.CheckPasswordAsync(user, authModel.Password);
             if (!pass_check)
                 return result;
-            if(_context.RefreshTokens
-                .Where(rf=>rf.UserId==user.Id)
-                .FirstOrDefault() is RefreshToken refresh_token){
-                    _context.RefreshTokens.Remove(refresh_token);
-            }
 
             result.Token = await GenerateTokenAsync(user);
-            result.RefreshToken = await GenerateRefreshTokenAsync();
-            var refreshToken = new RefreshToken()
-            {
-                CreatedOn = DateTime.UtcNow,
-                Token = result.RefreshToken
-            };
+            if(await _context.RefreshTokens.FirstOrDefaultAsync(rt=>rt.UserId==user.Id) is RefreshToken token)
+                result.RefreshToken = token.Token;
+            else
+                result.RefreshToken = await GenerateRefreshTokenAsync();
             
-            user.RefreshTokens.Add(refreshToken);
             _context.Entry(user).State = EntityState.Modified;
             await _context.SaveChangesAsync();
             return result;
@@ -95,7 +87,7 @@ namespace WebApi.Services
             if(securityStampFromJWToken!=user.SecurityStamp){
                 return null;
             }
-            var refresh_token = _context.RefreshTokens.FirstOrDefault(t=>t.UserId==user.Id);
+            var refresh_token = await _context.RefreshTokens.FirstOrDefaultAsync(t=>t.UserId==user.Id);
             var token = await RefreshTokenAsync(refresh_token.Token);
             
             return token;

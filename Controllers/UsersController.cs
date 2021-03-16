@@ -52,23 +52,24 @@ namespace WebApi.Controllers
         }
         [HttpGet]
         [Authorize(Roles="admin")]
-        public async Task<IActionResult> FindRaw(FindWhereRequest request){
-            ApplicationUser user = null;
-            var res = await FindUser(request,_userManager);
-            if(res.Error!=null)
-                return res.Error;
-            user = res.User;
-
-            return new JsonResult(new {user,Roles=await _userManager.GetRolesAsync(user)}) { StatusCode=StatusCodes.Status302Found};
+        public async Task<IActionResult> FindRaw(FindUser request){
+            var res = request.GetUser(_context);
+            if(res==null)
+                return new JsonResult(request.Errors){StatusCode = StatusCodes.Status406NotAcceptable};
+            ApplicationUser user = await res.FirstOrDefaultAsync();
+            if(user==null)
+                return new JsonResult(new {message="User not found"}){StatusCode = StatusCodes.Status404NotFound};
+            return new JsonResult(new {User = user,Roles = await _userManager.GetRolesAsync(user)}) { StatusCode=StatusCodes.Status302Found};
         }
         [HttpGet]
         [Authorize(Roles="admin,moderator")]
-        public async Task<IActionResult> Find(FindWhereRequest request){
-            ApplicationUser user = null;
-            var res = await FindUser(request,_userManager);
-            if(res.Error!=null)
-                return res.Error;
-            user = res.User;
+        public async Task<IActionResult> Find(FindUser request){
+            var res = request.GetUser(_context);
+            if(res==null)
+                return new JsonResult(request.Errors){StatusCode = StatusCodes.Status406NotAcceptable};
+            ApplicationUser user = await res.FirstOrDefaultAsync();
+            if(user==null)
+                return new JsonResult(new {message="User not found"}){StatusCode = StatusCodes.Status404NotFound};
             return new JsonResult(new {User = new SimpleUser{identityUser= user},Roles = await _userManager.GetRolesAsync(user)}) { StatusCode=StatusCodes.Status302Found};
         }
 
@@ -88,49 +89,11 @@ namespace WebApi.Controllers
             
             var token = await _authentication.UpdateTokenAsync(userid,securityStamp);
             if(token==null){
-                return new JsonResult(new {message="Users credentials recently changed, so token is denied"}){StatusCode=StatusCodes.Status403Forbidden};
+                return new JsonResult(new {message="Token Denied. Authenticate again."}){StatusCode=StatusCodes.Status406NotAcceptable};
             }
             return Ok(new {token});
         }
-        [HttpGet]
-        [Authorize(Roles="admin,modifier")]
-        public async Task<IActionResult> GetAll()
-        {
-            var roles = _context.Roles.ToList();
-            var userRoles = _context.UserRoles.ToList();
-            var result = _context.Users
-                        .ToList()
-                        .Select(u=>
-                            new {
-                            User = new SimpleUser{identityUser = u},
-                            Roles = userRoles
-                                .Where(ur=>ur.UserId==u.Id)
-                                .Select(ur=>roles
-                                    .Where(r=>r.Id==ur.RoleId)
-                                    .FirstOrDefault().Name)
-                            });
-            return Ok(result);
-        }
 
-        [HttpGet]
-        [Authorize(Roles="admin")]
-        public async Task<IActionResult> GetAllRaw(){
-
-            var roles = _context.Roles.ToList();
-            var userRoles = _context.UserRoles.ToList();
-            var result = _context.Users
-                        .ToList()
-                        .Select(u=>
-                            new {
-                            User = u,
-                            Roles = userRoles
-                                .Where(ur=>ur.UserId==u.Id)
-                                .Select(ur=>roles
-                                    .Where(r=>r.Id==ur.RoleId)
-                                    .FirstOrDefault())
-                            });
-            return Ok(result);
-        }
         [HttpGet]
         [Authorize]
         public async Task<IActionResult> GetMyself(){
@@ -168,54 +131,77 @@ namespace WebApi.Controllers
                  User = new SimpleUser(){identityUser = identityUser}}) 
                  {StatusCode = StatusCodes.Status201Created};
             }
-            scope.Complete();
             return new JsonResult(result.Errors){StatusCode = StatusCodes.Status400BadRequest};
         }
         [HttpPost]
         [Authorize(Roles="admin,moderator")]
         public async Task<IActionResult> Update(UpdateUserRequest request){
-            var scope = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
-            ApplicationUser user = null;
+            bool IsCredentialsChanged = request.UserName!=null || request.changePassword!=null;
 
-            var res = await FindUser(request,_userManager);
-            if(res.Error!=null){
-                return res.Error;
-            }
-
-            user = res.User;
+            using var scope = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
             
+            //find user
+            var res = request.findUser.GetUser(_context);
+            if(res==null)
+                return new JsonResult(request.findUser.Errors){StatusCode=StatusCodes.Status406NotAcceptable};
+            
+            ApplicationUser user = await res.FirstOrDefaultAsync();
+            //if user not found return not found. 100% logic
+            if(user==null)
+                return new JsonResult(new {message="User not found"}){StatusCode = StatusCodes.Status404NotFound};
+            
+            //if value in request is present, then we update it in user 
             user.Email=request.Email ?? user.Email;
             user.UserName=request.UserName ?? user.UserName;
             user.PhoneNumber=request.Phone ?? user.PhoneNumber;
             user.Name = request.Name ?? user.Name;
-            
-            IdentityResult pass_change = null;
-            if(!string.IsNullOrEmpty(request.NewPassword) && !string.IsNullOrEmpty(request.OldPassword))
-            pass_change = await _userManager.ChangePasswordAsync(user,request.OldPassword,request.NewPassword);
-            
-            var resultupdate = await _userManager.UpdateAsync(user);
 
+            //summary errors from change password attempt and update user attempt
+            List<IdentityError> summary = new List<IdentityError>();
+
+            //try to update user and if error fill summary with errors
+            var resultupdate = await _userManager.UpdateAsync(user);
             if(!resultupdate.Succeeded){
-                List<IdentityError> summary = new List<IdentityError>();
                 summary.AddRange(resultupdate.Errors ?? new List<IdentityError>());
-                if(pass_change!=null && !pass_change.Succeeded)
-                summary.AddRange(pass_change.Errors ?? new List<IdentityError>());
-                return new JsonResult(new {message="Error while attempt to update user",resultupdate.Errors}){StatusCode=StatusCodes.Status406NotAcceptable};
             }
 
+            //try to change password if needed. if error fill summary with errors
+            if(request.changePassword is not null){
+                var pass_change = await _userManager.ChangePasswordAsync(user,request.changePassword.OldPassword ?? "",request.changePassword.NewPassword ?? "");
+                if(!pass_change.Succeeded)
+                    summary.AddRange(pass_change.Errors ?? new List<IdentityError>());
+            }
+            
+
+            //here we try to add/remove roles of user if possible
             IList<string> roles = null;
             if(request.AddRoles is not null && request.AddRoles.Any()){
                 roles = await _userManager.GetRolesAsync(user);
                 var result = await _userManager.AddToRolesAsync(user,request.AddRoles.Except(roles));
+                
+                if(!result.Succeeded)
+                    summary.AddRange(result.Errors);
             }
             if(request.RemoveRoles is not null && request.RemoveRoles.Any()){
                 if(roles is null)
                 roles = await _userManager.GetRolesAsync(user);
-                var removeRolesThatExistNow = roles.Intersect(request.RemoveRoles);
-                var result = await _userManager.RemoveFromRolesAsync(user,removeRolesThatExistNow);
+
+                //we need to ensure that we remove roles which we can remove and skip other
+                var RolesThatUserNowBelongsTo = roles.Intersect(request.RemoveRoles);
+                var result = await _userManager.RemoveFromRolesAsync(user,RolesThatUserNowBelongsTo);
+                
+                if(!result.Succeeded)
+                    summary.AddRange(result.Errors);
             }
-            if(_context.RefreshTokens.FirstOrDefault(t=>t.UserId==user.Id) is RefreshToken token)
-            _context.RefreshTokens.Remove(token);
+
+            //if there were any error we return errors and dispose scope to cancel tansaction
+            if(summary.Count>0){
+            scope.Dispose();
+            return new JsonResult(new {message="Error while attempt to update user",summary}){StatusCode=StatusCodes.Status406NotAcceptable};
+            }
+            //cause we updated the user's Credentials we also need to remove current refresh token
+            if(IsCredentialsChanged)
+                _context.RefreshTokens.Remove(await _context.RefreshTokens.FirstOrDefaultAsync(t=>t.UserId==user.Id));
             await _userManager.UpdateSecurityStampAsync(user);
             await _context.SaveChangesAsync();
             scope.Complete();
@@ -224,49 +210,20 @@ namespace WebApi.Controllers
         }
         [HttpDelete]
         [Authorize(Roles="admin,moderator")]
-        public async Task<IActionResult> Delete(RemoveRequest request){
+        public async Task<IActionResult> Delete(FindUser request){
             using var scope = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
-            
-            ApplicationUser user = null;
-            var res = await FindUser(request,_userManager);
-            if(res.Error!=null)
-                return res.Error;
-            
-            user = res.User;
-
+            var res = request.GetUser(_context);
+            if(res==null)
+                return new JsonResult(new {request.Errors}){StatusCode=StatusCodes.Status406NotAcceptable};
+            ApplicationUser user = await res.FirstOrDefaultAsync();
+            if(user == null)
+                return new JsonResult(new {message="User not found"}){StatusCode = StatusCodes.Status404NotFound};
             var result = await _userManager.DeleteAsync(user);
             scope.Complete();
             if(result.Succeeded)
                 return Ok(new {message="User deleted"});
             return BadRequest(result.Errors);
         }
-        [NonAction]
-        public static async Task<(IActionResult Error, ApplicationUser User)> FindUser(NeedFindUser request,UserManager<ApplicationUser> _userManager){
-            var findByLower = request.FindUserBy.ToLower();
-            var query = _userManager.Users;
-            ApplicationUser user = null;
-            switch(findByLower){
-                case "username":
-                    if(string.IsNullOrEmpty(request.UserName)) 
-                    return (new JsonResult(new {message=$"Empty or null {findByLower}"}){StatusCode=StatusCodes.Status400BadRequest},null);
-                    user = query.FirstOrDefault(u=>u.UserName==request.UserName);
-                break;
-                case "email":
-                    if(string.IsNullOrEmpty(request.Email)) 
-                    return (new JsonResult(new {message=$"Empty or null {findByLower}"}){StatusCode=StatusCodes.Status400BadRequest},null);
-                    user = query.FirstOrDefault(u=>u.Email==request.Email);
-                break;
-                case "id" :
-                    if(string.IsNullOrEmpty(request.Id)) 
-                    return (new JsonResult(new {message=$"Empty or null {findByLower}"}){StatusCode=StatusCodes.Status400BadRequest},null);
-                    user = query.FirstOrDefault(u=>u.Id==request.Id);
-                break;
-                default:
-                    return (new JsonResult(new {message="Wrong 'findUserBy' argument. It should be 'user' or 'email' or 'id'"}){StatusCode=StatusCodes.Status400BadRequest},null);
-            };
-            if(user==null)
-            return (new JsonResult(new {message="User not found"}){StatusCode=StatusCodes.Status404NotFound},null);
-            return (null,user);
-        }
+
     }
 }
