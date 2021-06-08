@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Identity;
-using WebApi.Entities;
+using Auth.Entities;
 
-namespace WebApi.Models.Responses
+namespace Auth.Models.Responses
 {
     public class AuthenticateResponse
     {

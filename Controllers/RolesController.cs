@@ -1,32 +1,40 @@
 using Microsoft.AspNetCore.Mvc;
-using WebApi.Models;
-using WebApi.Services;
+using Auth.Models;
+//using Auth.Services;
 using System.Linq;
 using Microsoft.AspNetCore.Identity;
-using WebApi.Entities;
+using Auth.Entities;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.Http;
 using System.Collections.Generic;
-using WebApi.Models.Requests;
+using Auth.Models.Requests;
 using Microsoft.AspNetCore.Authorization;
+using OpenIddict.Validation.AspNetCore;
 
-namespace WebApi.Controllers
+namespace Auth.Controllers
 {
     [ApiController]
     [Route("[controller]/[action]")]
     public class RolesController  : ControllerBase
     {
         private readonly RoleManager<IdentityRole> _roleManager;
-
-        public RolesController(RoleManager<IdentityRole> roleManager)
+        private readonly UserManager<ApplicationUser> _userManager;
+        public RolesController(RoleManager<IdentityRole> roleManager, UserManager<ApplicationUser> userManager)
         {
             _roleManager = roleManager;
-        }   
+            _userManager = userManager;
+        }
         [HttpPost]
+        [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
         [Authorize(Roles="admin")]
         public async Task<IActionResult> Add(CreateRoleRequest request){
+            var user = await _userManager.GetUserAsync(User);
+            if (user == null)
+            {
+                return BadRequest();
+            }
             var role = new IdentityRole(request.Name);
             var result = await _roleManager.CreateAsync(role);
             if(!result.Succeeded)

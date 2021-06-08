@@ -1,7 +1,7 @@
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Identity;
 
-namespace WebApi.Entities
+namespace Auth.Entities
 {
     /// <summary>
     /// This is simplefied version of IdentityUser that helps incapsulate some IdentityUser fields

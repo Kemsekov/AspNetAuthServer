@@ -1,4 +1,4 @@
-namespace WebApi.Models.Requests
+namespace Auth.Models.Requests
 {
     public class RefreshAcessTokenRequest
     {

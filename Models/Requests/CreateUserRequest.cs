@@ -1,8 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Identity;
-using WebApi.Entities;
+using Auth.Entities;
 
-namespace WebApi.Models.Requests
+namespace Auth.Models.Requests
 {
     public class CreateUserRequest
     {

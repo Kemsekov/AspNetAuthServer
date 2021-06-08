@@ -1,7 +1,7 @@
 ﻿using System.Text.Json.Serialization;
-using WebApi.Entities;
+using Auth.Entities;
 
-namespace WebApi.Models
+namespace Auth.Models
 {
     public class AuthResult
     {

@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace WebApi.Models.Requests
+namespace Auth.Models.Requests
 {
     public class CreateRoleRequest
     {

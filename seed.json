@@ -1,0 +1,25 @@
+{
+"Seed":{
+    "Users" :
+    [
+      {
+        "UserName" : "admin",
+        "Email" : "admin@admin",
+        "Password" : "adminADMIN55",
+        "Roles" : ["admin"]
+      },
+      {
+        "UserName" : "bochka",
+        "Email" : "bochka@bochka",
+        "Password" : "Password123",
+        "Roles" : ["user", "moderator"]
+      },
+      {
+        "UserName" : "vlad22",
+        "Email" : "vlad22@vlad22",
+        "Password" : "vlad22VLAD22",
+        "Roles" : ["user","manager"]
+      }
+    ]
+  }
+}

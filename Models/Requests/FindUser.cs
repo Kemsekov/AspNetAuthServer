@@ -1,11 +1,11 @@
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
-using WebApi.Contexts;
-using WebApi.Entities;
+using Auth.Contexts;
+using Auth.Entities;
 using System.Linq;
 
-namespace WebApi.Models.Requests
+namespace Auth.Models.Requests
 {
     public class FindUser
     {
@@ -28,14 +28,14 @@ namespace WebApi.Models.Requests
         /// </summary>
         /// <param name="dbContext"></param>
         /// <returns>IQueryable that can be used to receive user by calling on it FirstOrDefault or FirstOrDefaultAsync.</returns>
-        public IQueryable<ApplicationUser> GetUser(WebApiDbContext dbContext){
+        public IQueryable<ApplicationUser> GetUser(AuthDbContext dbContext){
   
             //this is cringe but... yes...
-            var isFound = email!=null ? 1:0 + phoneNumber!=null ? 1:0 + name!=null ? 1:0 + userName!=null ? 1:0 + id!=null ? 1:0;
+            var isFound = email!=null ? 1:0 + phoneNumber!=null ? 1:0  + userName!=null ? 1:0 + id!=null ? 1:0;
             
             if(isFound!=1){
                 Errors.Add(
-                    @"findUser body should contain one of following params : 'userName' | 'email' | 'phoneNumber' | 'name' |'id'"
+                    @"findUser body should contain one of following params : 'userName' | 'email' | 'phoneNumber'  |'id'"
                 );
                 return null;
             }
@@ -43,7 +43,6 @@ namespace WebApi.Models.Requests
             userName = userName?.ToUpper();
             return dbContext.Users.Where(u=>
                 !string.IsNullOrEmpty(email)       ? u.NormalizedEmail    == email      : true &&
-                !string.IsNullOrEmpty(name)        ? u.Name               == name       : true &&
                 !string.IsNullOrEmpty(phoneNumber) ? u.PhoneNumber        == phoneNumber: true &&
                 !string.IsNullOrEmpty(userName)    ? u.NormalizedUserName == userName   : true &&
                 !string.IsNullOrEmpty(id)          ? u.Id                 == id         : true

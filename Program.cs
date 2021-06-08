@@ -1,39 +1,38 @@
-using WebApi.Entities;
-using Microsoft.AspNetCore;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-using Serilog;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using WebApi.Options;
-using WebApi.Services;
-using WebApi.Contexts;
+using Auth.Contexts;
+using Auth.Entities;
+using Auth.Jobs;
+using Auth.Options;
+//using Auth.Services;
+using Microsoft.AspNetCore;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using Serilog;
 
-namespace WebApi
+namespace Auth
 {
     public class Program
     {
         public static IConfiguration Configuration { get; } = new ConfigurationBuilder()
             .SetBasePath(Directory.GetCurrentDirectory())
-            .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+            .AddJsonFile("seed.json", optional: true, reloadOnChange: false)
             .AddEnvironmentVariables()
             .Build();
-
         public static IWebHost BuildWebHost(string[] args) =>
             WebHost.CreateDefaultBuilder(args)
                 .UseStartup<Startup>()
                 .UseSerilog()
-                .UseUrls("http://localhost:5000")
+                //.UseUrls("http://localhost:5000")
                 .Build();
-
         public static async Task Main(string[] args)
         {
             Log.Logger = new Serilog.LoggerConfiguration()
@@ -41,7 +40,9 @@ namespace WebApi
             .MinimumLevel.Override("Microsoft", Serilog.Events.LogEventLevel.Debug)
             .Enrich.FromLogContext()
             .WriteTo.Console()
-            .CreateLogger();
+            .WriteTo.File("./log.txt")
+            .CreateLogger();    
+            
             try
             {
                 var webHost = BuildWebHost(args);
@@ -49,10 +50,10 @@ namespace WebApi
                 var service = scope.ServiceProvider;
                 var userManager = service.GetRequiredService<UserManager<ApplicationUser>>();
                 var roleManager = service.GetRequiredService<RoleManager<IdentityRole>>();
-                var adminOptions = service.GetRequiredService<IOptions<AdminOptions>>().Value;
-                var context = service.GetRequiredService<WebApiDbContext>();
-                await Seed.Initialize(userManager, roleManager,context,adminOptions);
-
+                
+                var seed = Configuration.GetSection(nameof(Seed)).Get<Seed>();
+                await seed.Initialize(userManager, roleManager);
+                
                 webHost.Run();
                 return;
             }

@@ -1,4 +1,4 @@
-﻿namespace WebApi.Options
+﻿namespace Auth.Options
 {
 
     public static class AuthSettings

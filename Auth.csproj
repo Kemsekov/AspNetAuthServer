@@ -1,6 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup>
-    <UserSecretsId>WebApi</UserSecretsId>
     <TargetFramework>net5.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
@@ -13,10 +12,7 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="NETCore.MailKit" Version="2.0.3"/>
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="5.0.2"/>
-    <PackageReference Include="GoogleApi" Version="3.10.5"/>
-    <PackageReference Include="Google.Apis.Auth" Version="1.49.0"/>
     <PackageReference Include="System.Text.Encodings.Web" Version="5.0.0"/>
     <PackageReference Include="Serilog" Version="2.10.0"/>
     <PackageReference Include="Serilog.AspNetCore" Version="3.4.1-dev-00188"/>
@@ -26,7 +22,10 @@
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="5.0.2"/>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="5.0.2"/>
     <PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="5.0.2"/>
-    <PackageReference Include="Google.Apis.Auth.Mvc" Version="1.49.0"/>
     <PackageReference Include="Microsoft.Extensions.Http.Polly" Version="6.0.0-preview.2.21154.6"/>
+    <PackageReference Include="Quartz" Version="3.2.4"/>
+    <PackageReference Include="Quartz.AspNetCore" Version="3.2.4"/>
+    <PackageReference Include="OpenIddict.AspNetCore" Version="3.0.2"/>
+    <PackageReference Include="OpenIddict.EntityFrameworkCore" Version="3.0.2"/>
   </ItemGroup>
 </Project>

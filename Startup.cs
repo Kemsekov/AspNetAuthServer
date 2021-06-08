@@ -1,9 +1,9 @@
 using System;
 using System.Text;
 using System.Threading.Tasks;
-using WebApi.Contexts;
-using WebApi.Entities;
-using WebApi.Services;
+using Auth.Contexts;
+using Auth.Entities;
+//using Auth.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -14,12 +14,16 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using WebApi.Options;
+using Auth.Options;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.Authorization;
 using Polly;
-using WebApi.HealthCheck;
-namespace WebApi
+using Quartz;
+using static OpenIddict.Abstractions.OpenIddictConstants;
+using Auth.Jobs;
+//using Auth.HealthCheck;
+
+namespace Auth
 {
     public class Startup
     {
@@ -27,122 +31,126 @@ namespace WebApi
         {
             Configuration = configuration;
         }
-
         public IConfiguration Configuration { get; }
 
         public void ConfigureServices(IServiceCollection services)
         {
-            services.Configure<JwtOptions>(Configuration.GetSection(nameof(JwtOptions)));
-            services.Configure<CertsOptions>(Configuration.GetSection(nameof(CertsOptions)));
-            services.Configure<AdminOptions>(Configuration.GetSection(nameof(AdminOptions)));
-            services.Configure<EmailConfiguration>(Configuration.GetSection(nameof(EmailConfiguration)));
-            services.Configure<Token>(Configuration.GetSection(nameof(Token)));
-            services.Configure<Options.ClientSecrets>(Configuration.GetSection(nameof(Options.ClientSecrets)));
-                services.AddIdentity<ApplicationUser, IdentityRole>(options=>{
+            services.AddIdentity<ApplicationUser, IdentityRole>(options=>{
                 options.SignIn.RequireConfirmedEmail=true;
-                options.Password.RequireDigit=false;
+                options.Password.RequireDigit=true;
                 options.Password.RequireNonAlphanumeric=false;
                 options.Password.RequireUppercase=false;
                 options.User.RequireUniqueEmail=true;
                 options.SignIn.RequireConfirmedAccount=true;
                 options.Password.RequiredLength=8;
             })
-                .AddEntityFrameworkStores<WebApiDbContext>()
+                .AddEntityFrameworkStores<AuthDbContext>()
                 .AddDefaultTokenProviders();
-            services.AddSingleton<IEmailSender,EmailSender>();
-            services.AddDbContextPool<WebApiDbContext>(options =>
-            options.UseNpgsql(Configuration.GetConnectionString("WebApi")));
-
-            AddAuthentication(services);
-            services.AddAuthorization();
-            services.AddScoped<IUserAuthenticationService, UserAuthenticationService>();
-            services.AddControllers();
-
-            //just an example of http polly
-            services.AddHttpClient<IEmailSender>()
-                .AddTransientHttpErrorPolicy(builder=>builder.WaitAndRetryAsync(10,retryAttempt=>TimeSpan.FromSeconds(Math.Pow(2,retryAttempt))))
-                .AddTransientHttpErrorPolicy(builder=>builder.CircuitBreakerAsync(3,TimeSpan.FromSeconds(10)));
             
-            services.AddHealthChecks()
-                .AddCheck<EmailSenderHealthCheck>(nameof(IEmailSender));
-            
+            services.AddDbContextPool<AuthDbContext>(options =>{
+                options.UseNpgsql(Configuration.GetConnectionString("AuthDb"));
+                options.UseOpenIddict();
+            });
+
+            services.Configure<IdentityOptions>(options=>{
+                options.ClaimsIdentity.UserNameClaimType = Claims.Name;
+                options.ClaimsIdentity.UserIdClaimType = Claims.Subject;
+                options.ClaimsIdentity.RoleClaimType = Claims.Role;
+            });
+
+            services.AddOpenIddict()
+                .AddCore(options =>{
+                    options.UseEntityFrameworkCore()
+                    .UseDbContext<AuthDbContext>();
+                })
+                .AddServer(options=>{
+                    options
+                        .SetAuthorizationEndpointUris("/connect/authorize")
+                        .SetLogoutEndpointUris("/connect/logout")
+                        .SetTokenEndpointUris("/connect/token")
+                        .SetUserinfoEndpointUris("/connect/userinfo");
+
+                    options.RegisterScopes(Scopes.Profile, Scopes.Email, Scopes.OfflineAccess);
+                    options.AllowPasswordFlow();
+                    options.AllowAuthorizationCodeFlow()
+                            .AllowRefreshTokenFlow();
+                    
+                    options.AcceptAnonymousClients();
+
+                    //api scope is just for those users who can use api(idk)
+                    options
+                        .RegisterScopes("api");
+                    options.Configure(cfg =>{
+                    });
+                    options
+                        //for development, need to change to actual cert
+                        .AddDevelopmentEncryptionCertificate()
+                        .AddDevelopmentSigningCertificate()
+                        //for development
+                        .DisableAccessTokenEncryption();
+                    
+                    options.UseAspNetCore()
+                        .EnableAuthorizationEndpointPassthrough()
+                        .EnableLogoutEndpointPassthrough()
+                        .EnableTokenEndpointPassthrough()
+                        .EnableUserinfoEndpointPassthrough()
+                        .EnableStatusCodePagesIntegration()
+                        .DisableTransportSecurityRequirement();
+                })
+                .AddValidation(options =>{
+                    options.UseLocalServer();
+                    options.UseAspNetCore();
+                });
             services.AddSwaggerGen(c =>
-            {
-                
+            {    
                 c.SwaggerDoc("v1", new OpenApiInfo { Title = "WebApi", Version = "v1" });
             });
-            services.AddCors(c =>{ c.AddPolicy("dev", opt =>
+
+            services.AddQuartz(options =>
             {
-                opt.AllowAnyHeader()
-                .WithExposedHeaders(AuthSettings.EXPIRED_TOKEN_HEADER) //https://stackoverflow.com/questions/37897523/axios-get-access-to-response-header-fields#answer-55714686
-                .AllowAnyMethod()
-                .AllowCredentials()
-                .WithOrigins("http://localhost");
+                options.UseMicrosoftDependencyInjectionJobFactory();
+                options.UseSimpleTypeLoader();
+                options.UseInMemoryStore();
             });
-            c.AddPolicy("prod",opt=>{
-                //todo later
-            });
-            });
+
+            services.AddQuartzHostedService(options => options.WaitForJobsToComplete = true);
+            services.AddHostedService<OpenIddictWork>();
+            services.AddControllers();
+            services.AddCors();
+            //just an example of http polly
+            //services.AddHttpClient<IEmailSender>()
+            //    .AddTransientHttpErrorPolicy(builder=>builder.WaitAndRetryAsync(10,retryAttempt=>TimeSpan.FromSeconds(Math.Pow(2,retryAttempt))))
+            //    .AddTransientHttpErrorPolicy(builder=>builder.CircuitBreakerAsync(3,TimeSpan.FromSeconds(10)));
+            
+            /* services.AddHealthChecks()
+                .AddCheck<EmailSenderHealthCheck>(nameof(IEmailSender)); */
         }
 
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
-            app.UsePathBase("/api");
+            app.UsePathBase("/auth");
             if (env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
                 app.UseSwagger();
-                app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "WebApi v1"));
-                app.UseCors("dev");
+                app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "Auth v1"));
             }
             else{
-                app.UseCors("prod");
             }
 
             //app.UseHttpsRedirection();
 
             app.UseRouting();
+
             app.UseAuthentication();
             app.UseAuthorization();
 
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapControllers();
-                endpoints.MapHealthChecks("/health");
+                //endpoints.MapHealthChecks("/health");
             });
         }
-        private void AddAuthentication(IServiceCollection services)
-        {
-            services.AddAuthentication(opts =>
-            {
-                opts.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-                opts.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-            }).AddJwtBearer(jwtOptions =>
-            {
-                jwtOptions.SaveToken = false;
-                jwtOptions.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
-                {
-                    ValidIssuer = Configuration["JwtOptions:Issuer"],
-                    ValidAudience = Configuration["JwtOptions:Audience"],
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Configuration["JwtOptions:Key"])),
-                    ValidateIssuer = true,
-                    ValidateAudience = true,
-                    ValidateIssuerSigningKey = true,
-                    ValidateLifetime = true,
-                    ClockSkew = TimeSpan.Zero
-                };
-                jwtOptions.Events = new JwtBearerEvents
-                {
-                    OnAuthenticationFailed = failedContext =>
-                    {
-                        if (failedContext.Exception.GetType() == typeof(SecurityTokenExpiredException))
-                        {
-                            failedContext.Response.Headers.Add(AuthSettings.EXPIRED_TOKEN_HEADER, "true");
-                        }
-                        return Task.CompletedTask;
-                    }
-                };
-            });
-        }
+        
     }
 }

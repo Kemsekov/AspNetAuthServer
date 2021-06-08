@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace WebApi.Models.Requests
+namespace Auth.Models.Requests
 {
     public class AuthenticateRequest
     {
@@ -12,5 +12,8 @@ namespace WebApi.Models.Requests
         [MaxLength(256)]
         [MinLength(8)]
         public string Password { get; set; }
+        [Required]
+        public string[] Scopes {get;set;}
+        public string Service{get;set;}
     }
 }
